@@ -3,32 +3,23 @@ package entity
 import (
 	"time"
 
+	"github.com/atumaikin/nexflow/internal/domain/valueobject"
 	"github.com/atumaikin/nexflow/internal/shared/utils"
 )
 
 // Task represents a skill execution task.
 // Tasks track skill execution, status, and results.
 type Task struct {
-	ID        string    `json:"id"`         // Unique identifier for the task
-	SessionID string    `json:"session_id"` // ID of the session this task belongs to
-	Skill     string    `json:"skill"`      // Name of the skill to execute
-	Input     string    `json:"input"`      // Input parameters in JSON format
-	Output    string    `json:"output"`     // Output result in JSON format
-	Status    string    `json:"status"`     // Task status: "pending", "running", "completed", "failed"
-	Error     string    `json:"error"`      // Error message if the task failed
-	CreatedAt time.Time `json:"created_at"` // Timestamp when the task was created
-	UpdatedAt time.Time `json:"updated_at"` // Timestamp when the task was last updated
+	ID        valueobject.TaskID     `json:"id"`         // Unique identifier for the task
+	SessionID valueobject.SessionID  `json:"session_id"` // ID of the session this task belongs to
+	Skill     string                 `json:"skill"`      // Name of the skill to execute
+	Input     string                 `json:"input"`      // Input parameters in JSON format
+	Output    string                 `json:"output"`     // Output result in JSON format
+	Status    valueobject.TaskStatus `json:"status"`     // Task status: "pending", "running", "completed", "failed"
+	Error     string                 `json:"error"`      // Error message if the task failed
+	CreatedAt time.Time              `json:"created_at"` // Timestamp when the task was created
+	UpdatedAt time.Time              `json:"updated_at"` // Timestamp when the task was last updated
 }
-
-// TaskStatus represents the status of a task.
-type TaskStatus string
-
-const (
-	TaskStatusPending   TaskStatus = "pending"   // Task is waiting to be executed
-	TaskStatusRunning   TaskStatus = "running"   // Task is currently running
-	TaskStatusCompleted TaskStatus = "completed" // Task completed successfully
-	TaskStatusFailed    TaskStatus = "failed"    // Task failed with an error
-)
 
 // NewTask creates a new pending task for the specified session and skill with input parameters.
 func NewTask(sessionID, skill, input string) *Task {

@@ -217,25 +217,39 @@ func (uc *ChatUseCase) ExecuteSkill(ctx context.Context, sessionID, skillName st
 		}, fmt.Errorf("failed to create task: %w", err)
 	}
 
-	// Execute skill (simplified - in real app, use SkillRuntime port)
+	// Execute skill using SkillRuntime port
+	execution, err := uc.skillRuntime.Execute(ctx, skillName, input)
+	if err != nil {
+		task.SetFailed(fmt.Sprintf("skill execution failed: %v", err))
+		if err := uc.taskRepo.Update(ctx, task); err != nil {
+			uc.logger.Error("failed to update task status", "error", err)
+		}
+		return &dto.SkillExecutionResponse{
+			Success: false,
+			Error:   execution.Error,
+		}, fmt.Errorf("skill execution failed: %w", err)
+	}
+
+	// Update task with execution result
 	task.SetRunning()
 	if err := uc.taskRepo.Update(ctx, task); err != nil {
 		uc.logger.Error("failed to update task status", "error", err)
 	}
 
-	// Simulate skill execution
-	time.Sleep(100 * time.Millisecond)
+	if execution.Success {
+		task.SetCompleted(execution.Output)
+	} else {
+		task.SetFailed(execution.Error)
+	}
 
-	// Set task as completed
-	output := fmt.Sprintf(`{"result": "skill %s executed successfully", "input": %s}`, skillName, string(inputJSON))
-	task.SetCompleted(output)
 	if err := uc.taskRepo.Update(ctx, task); err != nil {
 		uc.logger.Error("failed to update task completion", "error", err)
 	}
 
 	return &dto.SkillExecutionResponse{
-		Success: true,
-		Output:  output,
+		Success: execution.Success,
+		Output:  execution.Output,
+		Error:   execution.Error,
 	}, nil
 }
 

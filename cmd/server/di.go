@@ -7,8 +7,10 @@ import (
 	"github.com/atumaikin/nexflow/internal/application/ports"
 	"github.com/atumaikin/nexflow/internal/application/usecase"
 	"github.com/atumaikin/nexflow/internal/domain/repository"
+	llmmock "github.com/atumaikin/nexflow/internal/infrastructure/llm/mock"
 	"github.com/atumaikin/nexflow/internal/infrastructure/persistence/database"
 	"github.com/atumaikin/nexflow/internal/infrastructure/persistence/database/sqlite"
+	skillmock "github.com/atumaikin/nexflow/internal/infrastructure/skills/mock"
 	"github.com/atumaikin/nexflow/internal/shared/config"
 	"github.com/atumaikin/nexflow/internal/shared/logging"
 )
@@ -100,17 +102,13 @@ func (c *DIContainer) initRepositories() error {
 
 // initPorts initializes all port implementations
 func (c *DIContainer) initPorts() error {
-	// TODO: Initialize LLM provider implementation
-	// c.llmProvider = llm.NewLLMProvider(c.config.LLM, c.logger)
+	// Initialize LLM provider mock
+	c.llmProvider = llmmock.NewMockLLMProvider()
 
-	// TODO: Initialize skill runtime implementation
-	// c.skillRuntime = skills.NewSkillRuntime(c.config.Skills, c.logger)
+	// Initialize skill runtime mock
+	c.skillRuntime = skillmock.NewMockSkillRuntime()
 
-	// For now, use nil implementations
-	c.llmProvider = nil
-	c.skillRuntime = nil
-
-	c.logger.Info("ports initialized successfully")
+	c.logger.Info("ports initialized successfully (mock implementations)")
 	return nil
 }
 
