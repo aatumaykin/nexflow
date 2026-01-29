@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/atumaikin/nexflow/internal/config"
+	"github.com/atumaikin/nexflow/internal/logging"
 )
 
 // Database interface defines all database operations
@@ -79,10 +80,11 @@ type DB struct {
 	*Queries
 	db     *sql.DB
 	config *DBConfig
+	logger logging.Logger
 }
 
 // NewDatabase creates a new database instance
-func NewDatabase(cfg *config.DatabaseConfig) (Database, error) {
+func NewDatabase(cfg *config.DatabaseConfig, logger logging.Logger) (Database, error) {
 	dbConfig := &DBConfig{
 		Type: cfg.Type,
 		Path: cfg.Path,
@@ -91,16 +93,20 @@ func NewDatabase(cfg *config.DatabaseConfig) (Database, error) {
 	var db *sql.DB
 	var err error
 
+	logger.Info("Connecting to database", "type", cfg.Type, "path", cfg.Path)
+
 	switch cfg.Type {
 	case "sqlite":
 		db, err = openSQLite(cfg.Path)
 	case "postgres":
 		db, err = openPostgres(cfg.Path)
 	default:
+		logger.Error("Unsupported database type", "type", cfg.Type)
 		return nil, fmt.Errorf("unsupported database type: %s", cfg.Type)
 	}
 
 	if err != nil {
+		logger.Error("Failed to open database connection", "error", err, "type", cfg.Type)
 		return nil, err
 	}
 
@@ -111,10 +117,13 @@ func NewDatabase(cfg *config.DatabaseConfig) (Database, error) {
 
 	queries := New(db)
 
+	logger.Info("Database connection established", "type", cfg.Type)
+
 	return &DB{
 		Queries: queries,
 		db:      db,
 		config:  dbConfig,
+		logger:  logger,
 	}, nil
 }
 
@@ -145,7 +154,13 @@ func openPostgres(connStr string) (*sql.DB, error) {
 
 // Close closes the database connection
 func (d *DB) Close() error {
-	return d.db.Close()
+	d.logger.Info("Closing database connection", "type", d.config.Type)
+	if err := d.db.Close(); err != nil {
+		d.logger.Error("Failed to close database connection", "error", err)
+		return err
+	}
+	d.logger.Info("Database connection closed successfully")
+	return nil
 }
 
 // GetDB returns the underlying *sql.DB instance
