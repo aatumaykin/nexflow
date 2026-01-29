@@ -8,8 +8,8 @@ const (
 	DefaultSkillTimeoutSec = 30
 
 	// HTTP server timeouts
-	DefaultIdleTimeoutSec = 60
-	DefaultReadTimeoutSec = 60
+	DefaultIdleTimeoutSec  = 60
+	DefaultReadTimeoutSec  = 60
 	DefaultWriteTimeoutSec = 60
 )
 

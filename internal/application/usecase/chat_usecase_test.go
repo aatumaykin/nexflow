@@ -160,6 +160,40 @@ func (m *MockLLMProvider) EstimateCost(req ports.CompletionRequest) (float64, er
 	return args.Get(0).(float64), args.Error(1)
 }
 
+// MockSkillRuntime is a mock implementation of SkillRuntime
+type MockSkillRuntime struct {
+	mock.Mock
+}
+
+func (m *MockSkillRuntime) Execute(ctx context.Context, skillName string, input map[string]interface{}) (*ports.SkillExecution, error) {
+	args := m.Called(ctx, skillName, input)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*ports.SkillExecution), args.Error(1)
+}
+
+func (m *MockSkillRuntime) Validate(skillName string) error {
+	args := m.Called(skillName)
+	return args.Error(0)
+}
+
+func (m *MockSkillRuntime) List() ([]string, error) {
+	args := m.Called()
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]string), args.Error(1)
+}
+
+func (m *MockSkillRuntime) GetSkill(skillName string) (map[string]interface{}, error) {
+	args := m.Called(skillName)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(map[string]interface{}), args.Error(1)
+}
+
 func TestChatUseCase_SendMessage_Success(t *testing.T) {
 	// Arrange
 	ctx := context.Background()
@@ -168,13 +202,14 @@ func TestChatUseCase_SendMessage_Success(t *testing.T) {
 	mockMessageRepo := new(MockMessageRepository)
 	mockTaskRepo := new(MockTaskRepository)
 	mockLLMProvider := new(MockLLMProvider)
+	mockSkillRuntime := new(MockSkillRuntime)
 	mockLogger := new(MockLogger)
 
-	uc := NewChatUseCase(mockUserRepo, mockSessionRepo, mockMessageRepo, mockTaskRepo, mockLLMProvider, mockLogger)
+	uc := NewChatUseCase(mockUserRepo, mockSessionRepo, mockMessageRepo, mockTaskRepo, mockLLMProvider, mockSkillRuntime, mockLogger)
 
 	user := entity.NewUser("web", "user123")
-	session := entity.NewSession(user.ID)
-	userMsg := entity.NewUserMessage(session.ID, "Hello")
+	session := entity.NewSession(string(user.ID))
+	userMsg := entity.NewUserMessage(string(session.ID), "Hello")
 
 	req := dto.SendMessageRequest{
 		UserID: "user123",
@@ -200,7 +235,7 @@ func TestChatUseCase_SendMessage_Success(t *testing.T) {
 		},
 	}
 
-	assistantMsg := entity.NewAssistantMessage(session.ID, "Hi there!")
+	assistantMsg := entity.NewAssistantMessage(string(session.ID), "Hi there!")
 
 	mockUserRepo.On("FindByChannel", ctx, "web", "user123").Return(nil, errors.New("not found"))
 	mockUserRepo.On("Create", ctx, mock.AnythingOfType("*entity.User")).Return(nil)
@@ -236,9 +271,10 @@ func TestChatUseCase_GetConversation_Success(t *testing.T) {
 	mockMessageRepo := new(MockMessageRepository)
 	mockTaskRepo := new(MockTaskRepository)
 	mockLLMProvider := new(MockLLMProvider)
+	mockSkillRuntime := new(MockSkillRuntime)
 	mockLogger := new(MockLogger)
 
-	uc := NewChatUseCase(mockUserRepo, mockSessionRepo, mockMessageRepo, mockTaskRepo, mockLLMProvider, mockLogger)
+	uc := NewChatUseCase(mockUserRepo, mockSessionRepo, mockMessageRepo, mockTaskRepo, mockLLMProvider, mockSkillRuntime, mockLogger)
 
 	sessionID := "session-1"
 	messages := []*entity.Message{
@@ -266,9 +302,10 @@ func TestChatUseCase_GetUserSessions_Success(t *testing.T) {
 	mockMessageRepo := new(MockMessageRepository)
 	mockTaskRepo := new(MockTaskRepository)
 	mockLLMProvider := new(MockLLMProvider)
+	mockSkillRuntime := new(MockSkillRuntime)
 	mockLogger := new(MockLogger)
 
-	uc := NewChatUseCase(mockUserRepo, mockSessionRepo, mockMessageRepo, mockTaskRepo, mockLLMProvider, mockLogger)
+	uc := NewChatUseCase(mockUserRepo, mockSessionRepo, mockMessageRepo, mockTaskRepo, mockLLMProvider, mockSkillRuntime, mockLogger)
 
 	userID := "user-1"
 	sessions := []*entity.Session{
@@ -296,9 +333,10 @@ func TestChatUseCase_CreateSession_Success(t *testing.T) {
 	mockMessageRepo := new(MockMessageRepository)
 	mockTaskRepo := new(MockTaskRepository)
 	mockLLMProvider := new(MockLLMProvider)
+	mockSkillRuntime := new(MockSkillRuntime)
 	mockLogger := new(MockLogger)
 
-	uc := NewChatUseCase(mockUserRepo, mockSessionRepo, mockMessageRepo, mockTaskRepo, mockLLMProvider, mockLogger)
+	uc := NewChatUseCase(mockUserRepo, mockSessionRepo, mockMessageRepo, mockTaskRepo, mockLLMProvider, mockSkillRuntime, mockLogger)
 
 	req := dto.CreateSessionRequest{
 		UserID: "user-1",
@@ -325,14 +363,22 @@ func TestChatUseCase_ExecuteSkill_Success(t *testing.T) {
 	mockMessageRepo := new(MockMessageRepository)
 	mockTaskRepo := new(MockTaskRepository)
 	mockLLMProvider := new(MockLLMProvider)
+	mockSkillRuntime := new(MockSkillRuntime)
 	mockLogger := new(MockLogger)
 
-	uc := NewChatUseCase(mockUserRepo, mockSessionRepo, mockMessageRepo, mockTaskRepo, mockLLMProvider, mockLogger)
+	uc := NewChatUseCase(mockUserRepo, mockSessionRepo, mockMessageRepo, mockTaskRepo, mockLLMProvider, mockSkillRuntime, mockLogger)
 
 	sessionID := "session-1"
 	skillName := "my-skill"
 	input := map[string]interface{}{"param": "value"}
 
+	skillExecResult := &ports.SkillExecution{
+		Success: true,
+		Output:  `{"result": "skill my-skill executed successfully"}`,
+		Error:   "",
+	}
+
+	mockSkillRuntime.On("Execute", ctx, skillName, input).Return(skillExecResult, nil)
 	mockTaskRepo.On("Create", ctx, mock.AnythingOfType("*entity.Task")).Return(nil)
 	mockTaskRepo.On("Update", ctx, mock.AnythingOfType("*entity.Task")).Return(nil)
 	mockLogger.On("Error", mock.Anything, mock.Anything).Return().Maybe()
@@ -355,9 +401,10 @@ func TestChatUseCase_GetSessionTasks_Success(t *testing.T) {
 	mockMessageRepo := new(MockMessageRepository)
 	mockTaskRepo := new(MockTaskRepository)
 	mockLLMProvider := new(MockLLMProvider)
+	mockSkillRuntime := new(MockSkillRuntime)
 	mockLogger := new(MockLogger)
 
-	uc := NewChatUseCase(mockUserRepo, mockSessionRepo, mockMessageRepo, mockTaskRepo, mockLLMProvider, mockLogger)
+	uc := NewChatUseCase(mockUserRepo, mockSessionRepo, mockMessageRepo, mockTaskRepo, mockLLMProvider, mockSkillRuntime, mockLogger)
 
 	sessionID := "session-1"
 	task1 := entity.NewTask(sessionID, "skill1", "{}")

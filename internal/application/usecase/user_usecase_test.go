@@ -189,7 +189,7 @@ func TestUserUseCase_GetUserByID_Success(t *testing.T) {
 	uc := NewUserUseCase(mockRepo, mockLogger)
 
 	user := entity.NewUser("telegram", "user123")
-	userID := user.ID
+	userID := string(user.ID)
 
 	mockRepo.On("FindByID", ctx, userID).Return(user, nil)
 
@@ -298,7 +298,7 @@ func TestUserUseCase_DeleteUser_Success(t *testing.T) {
 	uc := NewUserUseCase(mockRepo, mockLogger)
 
 	user := entity.NewUser("telegram", "user123")
-	userID := user.ID
+	userID := string(user.ID)
 
 	mockRepo.On("FindByID", ctx, userID).Return(user, nil)
 	mockRepo.On("Delete", ctx, userID).Return(nil)
@@ -352,7 +352,7 @@ func TestUserUseCase_GetOrCreateUser_Existing(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, resp.Success)
 	assert.NotNil(t, resp.User)
-	assert.Equal(t, existingUser.ID, resp.User.ID)
+	assert.Equal(t, string(existingUser.ID), resp.User.ID)
 	mockRepo.AssertExpectations(t)
 }
 
