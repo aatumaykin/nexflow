@@ -310,7 +310,11 @@ return fmt.Errorf("failed to open database: %w", err)
 Используйте конструкторы:
 
 ```go
-db, err := database.NewDatabase(cfg, logger)
+// По умолчанию использует NoopLogger
+db, err := database.NewDatabase(&cfg.Database)
+
+// Или с кастомным логгером
+db, err := database.NewDatabase(&cfg.Database, database.WithLogger(logger))
 ```
 
 ### Интерфейсы

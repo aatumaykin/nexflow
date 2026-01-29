@@ -9,6 +9,7 @@
 - Автоматического маскирования секретов
 - Контекстного логирования
 - Уровней логирования (DEBUG, INFO, WARN, ERROR)
+- **NoopLogger** - логгер-пустышка для тестов и случаев, когда логирование не требуется
 
 ## Структура
 
@@ -19,6 +20,41 @@ internal/logging/
 ├── middleware.go       # HTTP middleware для логирования запросов
 ├── logger_test.go      # Unit-тесты
 └── README.md           # Документация пакета
+```
+
+## NoopLogger (Logger-пустышка)
+
+`NoopLogger` - это реализация интерфейса `Logger`, которая ничего не делает. Полезна для:
+- **Тестов** - чтобы не захламлять вывод тестов логами
+- **Компонентов, где логирование не нужно** - по умолчанию в конструкторах
+- **Снижения накладных расходов** - когда логирование отключено
+
+```go
+import "github.com/atumaikin/nexflow/internal/logging"
+
+// Создать NoopLogger
+noopLogger := logging.NewNoopLogger()
+
+// Использование такое же, как и обычного logger
+noopLogger.Info("Это сообщение не будет выведено")
+noopLogger.Error("Это тоже не будет выведено")
+
+// Методы возвращают сам себя (chainable)
+logger := noopLogger.With("component", "test")
+logger.InfoContext(ctx, "С сообщением")
+```
+
+### Использование в конструкторах
+
+Большинство конструкторов в проекте по умолчанию используют `NoopLogger`. Для включения логирования передайте опцию `WithLogger`:
+
+```go
+// Без логирования (по умолчанию)
+db, err := database.NewDatabase(&cfg.Database)
+
+// С логированием
+logger, _ := logging.New("info", "json")
+db, err := database.NewDatabase(&cfg.Database, database.WithLogger(logger))
 ```
 
 ## Использование в новых компонентах
@@ -114,7 +150,8 @@ import (
 )
 
 logger, _ := logging.New("info", "json")
-db, err := database.NewDatabase(&cfg.Database, logger)
+// По умолчанию используется NoopLogger, но можно передать свой
+db, err := database.NewDatabase(&cfg.Database, database.WithLogger(logger))
 ```
 
 Database пакет логирует:
@@ -134,7 +171,8 @@ import (
 
 func main() {
     logger, _ := logging.New("info", "json")
-    loggingMiddleware := logging.Middleware(logger)
+    // По умолчанию использует NoopLogger, но можно передать свой
+    loggingMiddleware := logging.Middleware(logging.WithMiddlewareLogger(logger))
 
     mux := http.NewServeMux()
     // ... добавление handlers
@@ -330,7 +368,7 @@ func (w *Worker) Start(ctx context.Context) {
 
 ## Тестирование
 
-Для тестирования с логированием используйте test logger или перенаправьте вывод:
+Для тестирования с логированием используйте `NoopLogger`, который ничего не выводит:
 
 ```go
 import (
@@ -339,6 +377,21 @@ import (
 )
 
 func TestMyFunction(t *testing.T) {
+    logger := logging.NewNoopLogger()
+
+    result, err := MyFunction(logger)
+    if err != nil {
+        t.Fatal(err)
+    }
+
+    // ... проверки
+}
+```
+
+Если нужно видеть логи при отладке тестов, можно использовать обычный logger:
+
+```go
+func TestMyFunctionWithLogging(t *testing.T) {
     logger, _ := logging.New("debug", "text")
 
     result, err := MyFunction(logger)

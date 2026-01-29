@@ -22,21 +22,44 @@ Nexflow — self-hosted персональный ИИ-агент, который
 
 Nexflow говорит на русском и английском, UX/доки ориентированы на инженеров из СНГ.
 
-## Ключевые функции
+ ## Ключевые функции
+
+### 0. MVP Definition
+
+**MVP Goal:** Возможность общения с LLM через Telegram канал
+
+**MVP Scope:**
+- Telegram connector (бот)
+- LLM integration (минимум один провайдер: Anthropic/OpenAI/Ollama)
+- Basic message routing
+- Simple chat responses
+- No skills required for MVP
+
+**Success Criteria:**
+- Пользователь отправляет сообщение в Telegram
+- Nexflow маршрутизирует его к LLM
+- Ответ возвращается в Telegram
+- Время ответа ≤ 5 секунд
 
 ### 1. Multi-channel Gateway
 
 **Поддерживаемые каналы v1.0:**
-- Telegram (бот + личные сообщения)
-- Discord (сервер, личные сообщения)
-- Web UI (встроенный чат для отладки)
+- Telegram (бот + личные сообщения) **[MVP P0]**
+- Discord (сервер, личные сообщения) **[v1.0]**
+- Web UI (встроенный чат для отладки) **[v1.0]**
+- WhatsApp/Signal/Email **[v1.1+]**
 
 **Требования:**
 - Единый user identity через все каналы
 - Конфигурация через YAML/JSON + ENV
 - Сообщение → event → LLM → tools → response
 
-### 2. ИИ-ядро и модели
+**Delivery Providers** (из clawgo):
+- Единый интерфейс для отправки ответов в разные каналы
+- Поддержка: telegram, whatsapp, signal, imessage
+- Конфигурация через `deliver-channel` и `deliver-to`
+
+ ### 2. ИИ-ядро и модели
 
 **Поддержка провайдеров:**
 - Облачные API: Anthropic (Claude), OpenAI, Google Gemini, z.ai (BYO key)
@@ -49,6 +72,11 @@ Nexflow говорит на русском и английском, UX/доки 
 - Переключение модели по политике (сложные задачи → мощная модель, cheap → компактная)
 - Tool calling и агентные цепочки
 
+**Ralph Loops** (из gru):
+- Итеративный цикл разработки AI: код → тесты → исправление → повтор
+- Агент сам проверяет результат, находит ошибки и исправляет их
+- Автоматическое улучшение кода с минимальным вмешательством
+
 ### 3. Память и контекст
 
 **Типы памяти:**
@@ -60,7 +88,7 @@ Nexflow говорит на русском и английском, UX/доки 
 - Semantic-search по памяти
 - Редактируемые "rules" и "skills hints"
 
-### 4. Skills (инструменты)
+ ### 4. Skills (инструменты)
 
 **Базовый набор (MVP):**
 - `shell-run`: выполнение shell команд с подтверждением
@@ -81,12 +109,36 @@ Nexflow говорит на русском и английском, UX/доки 
 - Совместимость с Moltbot/Clawdbot
 - Плагины: Bash, Python, Node.js
 
-### 5. Безопасность и наблюдаемость
+**Templates System** (изgru):
+- Шаблоны для быстрого создания стандартных проектов
+- Команды: `/create react-app`, `/create python-bot`, `/create lambda-function`
+- Консистентная структура проектов
+- YAML конфигурация шаблонов с файлами и командами
+
+**Slash Commands** (из gru):
+- Структурированный CLI внутри чата
+- Команды начинаются с `/`
+- Примеры: `/create`, `/deploy`, `/doctor`, `/status`
+- Параметры и автодополнение
+
+ ### 5. Безопасность и наблюдаемость
 
 **Безопасность:**
 - Все действия логируются (время, вход, выход, статус)
 - Sandboxing: ограничение директорий, команд, хостов
 - Whitelist ресурсов и API ключей
+
+**Supervised Mode** (изgru):
+- Агент спрашивает подтверждение перед опасными действиями
+- Конфигурируемые правила подтверждения (по паттернам команд)
+- Полный контроль пользователя над действиями агента
+- Увеличивает доверие и безопасность
+
+**MCP (Model Context Protocol)** (изgru):
+- Протокол для подключения внешних инструментов и ресурсов
+- Поддержка стандартных MCP servers (filesystem, github, search, database)
+- Расширяемость через сторонние MCP servers
+- Единый интерфейс для всех инструментов
 
 **Observability:**
 - Встроенный Web dashboard (логи, задачи, очереди)
@@ -312,7 +364,7 @@ connectors:
       dev: "987654321098765432"
 ```
 
-### Web UI Connector
+ ### Web UI Connector
 
 **Функции:**
 - Встроенный SPA на Svelte
@@ -320,42 +372,147 @@ connectors:
 - Дашборд: логи, задачи, навыки
 - Управление конфигурацией
 
-## Требования к реализации
+### Дополнительные возможности (из clawgo/gru)
 
-### MVP (4–6 недель)
+**TTS Engines** (из clawgo):
+- Преобразование текста в голосовой ответ
+- Движки: espeak-ng (встроенный), Piper (быстрые нейронные), ElevenLabs (облачный)
+- Конфигурация через `-tts-engine`, `-tts-voice`, `-tts-rate`
+- Использование для голосовых сессий и уведомлений
+
+**mDNS Advertising** (из clawgo):
+- Автоматическое обнаружение агентов в локальной сети
+- Zero-configuration настройка без IP-адресов
+- Объявление сервиса `_nexflow-agent._tcp`
+- Команда `/discover` для поиска всех агентов
+
+**FIFO Streaming** (из clawgo):
+- Потоковая передача голосовых данных через named pipes
+- Реальное время для голосового ввода
+- Интеграция с голосовыми инструментами (Whisper, VAD)
+- Конфигурация через `-stdin` и `-stdin-file`
+
+**Quick Actions** (из clawgo):
+- Предустановленные быстрые команды
+- Примеры: `/status`, `/restart`, `/health`, `/ping`
+- Настройка через YAML конфигурацию
+- Быстрый доступ к популярным функциям
+
+**Routing Plugin System** (из clawgo):
+- Плагинная архитектура для маршрутизации запросов
+- Правила: по ключевым словам, контексту сессии, конфигурации
+- Распределение нагрузки между агентами
+- Контекстная маршрутизация (технические → Code Agent, бытовые → Home Assistant)
+
+**Screenshot Handling** (из gru):
+- Анализ UI скриншотов через Vision API
+- Воссоздание интерфейса по фото
+- Быстрое прототипирование UI
+- Клонирование дизайна
+
+**Live Deploy** (из gru):
+- Автоматическая деплойментация проекта в облако
+- Интеграция с Vercel/Railway/другими платформами
+- Прототипы сразу доступны
+- Команды: `/deploy vercel`, `/deploy railway`
+
+ ## Требования к реализации
+
+### MVP (2–3 недели)
+
+**Цель:** Возможность общения с LLM через Telegram
 
 **Ядро:**
-- Один бинарь Nexflow с конфигурацией (env + config.yml)
-- SQLite БД
-- HTTP/WebSocket API
+- Один бинарий Nexflow с конфигурацией (env + config.yml)
+- SQLite БД (минимальная схема)
+- HTTP API (минимальный)
 - Message router
 
 **Каналы:**
-- Telegram (бот)
+- **Telegram (бот)** - единственный канал для MVP
+- Web UI - опционально (можно отложить)
+
+**LLM:**
+- **Один провайдер** (Anthropic OR OpenAI OR Ollama)
+- Базовое message routing
+- Простые chat responses
+
+**Безопасность:**
+- **Supervised Mode** - подтверждение опасных действий
+- Базовое логирование
+
+**Навыки:**
+- Опционально для MVP (не требуются для базового чата)
+- `shell-run` - если включен, только с подтверждением
+
+### MVP+ (4–6 недель)
+
+**Расширяет MVP:**
+
+**Каналы:**
 - Web UI (basic чат)
 
 **LLM:**
-- Облачные провайдеры (Anthropic + OpenAI + z.ai + OpenRouter)
-- Локальный провайдер (Ollama)
-- Кастомный провайдер
+- Несколько провайдеров (Anthropic + OpenAI + Ollama)
 - Базовое переключение моделей
+- Simple tool calling
 
-**Память:**
-- Markdown профили (USER.md, WORKSPACE.md)
-- SQLite хранилище событий
-- Базовый semantic search
+**Навыки:**
+- Базовый набор: `shell-run`, `file-read/write`, `http-request`
+- Supervised Mode по умолчанию
 
-**Навыки (v0):**
-- `shell-run` (с подтверждением)
-- `file-read/write`
-- `http-request`
-- `git-basic`
-- `reminder/cron`
+**Фичи из проектов:**
+- Quick Actions (/status, /health)
+- Slash Commands (базовые)
+- Templates (2-3 базовых шаблона)
 
-**UI:**
-- Базовый чат в Web UI
-- Просмотр последних действий
-- Логи навыков
+### v1.0 (8–12 недель)
+
+**Каналы:**
+- Discord
+- Email (уведомления/триггеры)
+- Webhooks для внешних систем
+
+**Навыки:**
+- ≥ 20–30 навыков (CI/CD, облака, домашняя автоматизация)
+- Marketplace навыков (общий репозиторий)
+- Кастомные навыки пользователей
+
+**LLM:**
+- Множественные провайдеры (Anthropic, OpenAI, Ollama, Google Gemini, z.ai, OpenRouter)
+- Гибкий роутинг по политикам
+- Файн-тюнинг промптов
+
+**Фичи из проектов:**
+- MCP Client (расширяемость)
+- Delivery Providers (WhatsApp/Signal/iMessage)
+- TTS Engines (espeak-ng, Piper)
+- Templates (10+ шаблонов)
+- Ralph Loops (итеративная разработка)
+- Screenshot Handling
+- Live Deploy (Vercel/Railway)
+
+**Observability:**
+- Структурированные логи (JSON)
+- `/metrics` endpoint (Prometheus)
+- Алерты и уведомления
+- Health checks
+
+**Документация:**
+- Quickstart guide
+- Примеры конфигов
+- Guide для создания навыков
+- API reference
+
+### v1.1+ (12+ недель)
+
+**Фичи из проектов:**
+- mDNS Advertising (обнаружение агентов)
+- FIFO Streaming (голос в реальном времени)
+- Routing Plugin System (гибкая маршрутизация)
+- Расширенные TTS (ElevenLabs, дополнительные голоса)
+- Email/Slack connectors
+- Масштабирование (horizontal scaling, Redis, message queues)
 
 ### v1.0 (8–12 недель)
 
@@ -460,25 +617,43 @@ connectors:
 - **Поддержка:** нужна активная комьюнити и контрибьюторы
 - **Документация:** критически важна для пользовательского опыта
 
-## Roadmap
+ ## Roadmap
 
-### Q1 2026
-- MVP (4–6 недель)
-- Базовые навыки
-- Telegram + Web UI
+### Январь 2026
+- **MVP** (2–3 недели) - Telegram + LLM (один провайдер)
+- Supervised Mode для безопасности
+- Базовый message routing
+
+### Февраль 2026
+- **MVP+** (2–3 недели) - расширение MVP
+- Web UI (basic чат)
+- Несколько LLM провайдеров
+- Базовые навыки (shell, files, http)
+- Quick Actions & Slash Commands
+- Templates (базовые)
+
+### Март 2026
+- **v1.0** (4–6 недель)
+- Discord, Email, Webhooks
+- MCP Client
+- Delivery Providers (WhatsApp/Signal)
+- TTS Engines (espeak-ng, Piper)
+- Расширенные навыки (CI/CD, облака, HA)
+- Observability (metrics, health checks)
+- Documentation
 
 ### Q2 2026
-- v1.0 (8–12 недель)
-- Discord, Email
-- Расширенные навыки
-- Observability
-
-### Q3 2026
 - Marketplace навыков
+- Ralph Loops (итеративная разработка)
+- Screenshot Handling
+- Live Deploy (Vercel/Railway)
 - Горизонтальное масштабирование
 - Fine-tuning промптов
 
-### Q4 2026
+### Q3 2026
+- mDNS Advertising
+- FIFO Streaming (голос)
+- Routing Plugin System
 - Кастомные LLM модели
 - Enterprise features
 - Облачный SaaS (опционально)

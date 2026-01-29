@@ -338,9 +338,9 @@ result[i] = (data[i] ^ 0xFF)
 
 ```go
 // NewDatabase creates a new database connection.
-// It supports both SQLite and PostgreSQL databases.
+// By default, it uses a NoopLogger. Use WithLogger option to provide a custom logger.
 // Returns an error if connection cannot be established.
-func NewDatabase(cfg *config.DatabaseConfig, logger logging.Logger) (Database, error) { ... }
+func NewDatabase(cfg *config.DatabaseConfig, opts ...Option) (Database, error) { ... }
 ```
 
 ## Рефакторинг

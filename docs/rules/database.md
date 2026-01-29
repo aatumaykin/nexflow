@@ -99,24 +99,20 @@ type Database interface {
 ## Создание базы данных
 
 ```go
-func NewDatabase(cfg *config.DatabaseConfig, logger logging.Logger) (Database, error) {
-    var db *sql.DB
-    var err error
+// По умолчанию использует NoopLogger (не логирует)
+db, err := NewDatabase(&cfg.Database)
+if err != nil {
+    return nil, err
+}
 
-    switch cfg.Type {
-    case "sqlite":
-        db, err = sql.Open("sqlite3", cfg.Path)
-    case "postgres":
-        db, err = sql.Open("postgres", cfg.Path)
-    }
-
-    // Connection pool
-    db.SetMaxOpenConns(25)
-    db.SetMaxIdleConns(25)
-    db.SetConnMaxLifetime(5 * time.Minute)
-
-    queries := New(db)
-    return &DB{Queries: queries, db: db, config: cfg, logger: logger}, nil
+// Или с кастомным логгером
+logger, err := logging.New("info", "json")
+if err != nil {
+    return nil, err
+}
+db, err := NewDatabase(&cfg.Database, WithLogger(logger))
+if err != nil {
+    return nil, err
 }
 ```
 
@@ -302,7 +298,8 @@ func TestDatabase_Integration(t *testing.T) {
     tmpDir, _ := os.MkdirTemp("", "nexflow-test-*")
     defer os.RemoveAll(tmpDir)
 
-    db, err := NewDatabase(&config.DatabaseConfig{Type: "sqlite", Path: tmpDir + "/test.db"}, logger)
+    // Используем NoopLogger для тестов (по умолчанию)
+    db, err := NewDatabase(&config.DatabaseConfig{Type: "sqlite", Path: tmpDir + "/test.db"})
     require.NoError(t, err)
     defer db.Close()
 

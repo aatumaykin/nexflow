@@ -1,8 +1,30 @@
-# Nexflow Implementation Plan
+ # Nexflow Implementation Plan
 
 ## Обзор
 
-Документ описывает план реализации Nexflow — self-hosted персонального ИИ-агента. План разделен на фазы: MVP (4-6 недель) и v1.0 (8-12 недель).
+Документ описывает план реализации Nexflow — self-hosted персонального ИИ-агента. План разделен на фазы:
+- **MVP** (2-3 недели): Telegram + LLM (один провайдер)
+- **MVP+** (2-3 недели): Web UI + несколько провайдеров + базовые навыки
+- **v1.0** (4-6 недель): Расширенные фичи из clawgo/gru
+- **v1.1+** (дополнительно): mDNS, FIFO, Routing plugins
+
+## Концепции из проектов clawgo и gru
+
+| Концепция | Источник | Приоритет | Фаза |
+|-----------|----------|-----------|------|
+| **Supervised Mode** | gru | P0 | MVP |
+| **Quick Actions** | clawgo | P1 | MVP+ |
+| **Slash Commands** | gru | P1 | MVP+ |
+| **Templates** | gru | P1 | MVP+ |
+| **MCP Client** | gru | P1 | v1.0 |
+| **Delivery Providers** | clawgo | P1 | v1.0 |
+| **TTS Engines** | clawgo | P2 | v1.0 |
+| **Ralph Loops** | gru | P2 | v1.0 |
+| **Screenshot Handling** | gru | P2 | v1.0 |
+| **Live Deploy** | gru | P2 | v1.0 |
+| **mDNS Advertising** | clawgo | P3 | v1.1+ |
+| **FIFO Streaming** | clawgo | P3 | v1.1+ |
+| **Routing Plugins** | clawgo | P3 | v1.1+ |
 
 ## Стек технологий
 
@@ -13,6 +35,359 @@
 - **Конфигурация:** YAML + JSON
 - **Навыки:** Bash, Python, Node.js
 - **Деплой:** Docker/Docker Compose
+
+ ---
+
+## MVP Фаза: Telegram + LLM (2-3 недели)
+
+**Цель:** Минимальный рабочий прототип: Telegram бота, который общается с LLM
+
+**MVP Scope:**
+- Telegram connector (бот)
+- Один LLM провайдер (Anthropic OR OpenAI OR Ollama)
+- Простое message routing
+- Базовое логирование
+- Supervised Mode (безопасность)
+- SQLite (минимальная схема)
+
+### MVP.1 Проектная структура и конфигурация (2-3 дня)
+
+#### Задачи
+
+- [ ] Создать Go проект с модулями
+- [ ] Настроить структуру директорий: `cmd/`, `internal/`, `pkg/`, `docs/`
+- [ ] Инициализировать Go modules
+- [ ] Создать базовый config struct
+- [ ] Реализовать парсер YAML (минимальный)
+- [ ] Создать пример `config.yml`
+
+**Пример config.yml (MVP):**
+```yaml
+server:
+  host: "127.0.0.1"
+  port: 8080
+
+database:
+  type: "sqlite"
+  path: "./data/nexflow.db"
+
+llm:
+  default_provider: "anthropic"  # или "openai", "ollama"
+  providers:
+    anthropic:
+      api_key: "${ANTHROPIC_API_KEY}"
+      model: "claude-opus-4"
+    openai:
+      api_key: "${OPENAI_API_KEY}"
+      model: "gpt-4"
+    ollama:
+      base_url: "http://localhost:11434"
+      model: "llama3"
+
+channels:
+  telegram:
+    bot_token: "${TELEGRAM_BOT_TOKEN}"
+    allowed_users: [123456789]
+
+supervised_mode:
+  enabled: true
+
+logging:
+  level: "info"
+  format: "json"
+```
+
+### MVP.2 База данных (1 день)
+
+#### Задачи
+
+- [ ] Создать SQLite схему (минимальная: users, sessions, messages)
+- [ ] Реализовать basic Go DB layer
+- [ ] Создать миграции
+
+**Минимальная схема SQLite:**
+```sql
+CREATE TABLE users (
+    id TEXT PRIMARY KEY,
+    channel TEXT NOT NULL,
+    channel_user_id TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(channel, channel_user_id)
+);
+
+CREATE TABLE sessions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE messages (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    role TEXT NOT NULL,
+    content TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (session_id) REFERENCES sessions(id)
+);
+```
+
+### MVP.3 Логирование (1 день)
+
+#### Задачи
+
+- [ ] Настроить структурированный logger (slog)
+- [ ] Реализовать JSON формат
+- [ ] Реализовать маскирование секретов (ключи: token, key, password, secret)
+
+### MVP.4 Message Router (1-2 дня)
+
+#### Задачи
+
+- [ ] Определить интерфейс `Event`
+- [ ] Реализовать basic router
+- [ ] Реализовать event bus
+
+**Интерфейс Event:**
+```go
+type Event struct {
+    ID        string            `json:"id"`
+    Channel   string            `json:"channel"` // "telegram"
+    UserID    string            `json:"user_id"`
+    Message   string            `json:"message"`
+    Metadata  map[string]string `json:"metadata"`
+    Timestamp time.Time         `json:"timestamp"`
+}
+
+type EventHandler interface {
+    Handle(ctx context.Context, event Event) error
+}
+```
+
+### MVP.5 LLM Provider (один) (2-3 дня)
+
+#### Задачи
+
+- [ ] Определить интерфейс `LLMProvider`
+- [ ] Реализовать один провайдер (Anthropic OR OpenAI OR Ollama)
+- [ ] Реализовать basic message generation
+
+**Интерфейс LLMProvider:**
+```go
+type LLMProvider interface {
+    Generate(ctx context.Context, req GenerateRequest) (*GenerateResponse, error)
+}
+
+type GenerateRequest struct {
+    Messages   []Message `json:"messages"`
+    Model      string    `json:"model"`
+    MaxTokens  int       `json:"max_tokens"`
+}
+
+type GenerateResponse struct {
+    Message Message `json:"message"`
+    Tokens  Usage    `json:"tokens"`
+}
+```
+
+### MVP.6 Telegram Connector (2-3 дня)
+
+#### Задачи
+
+- [ ] Интегрировать Telegram Bot API (go-telegram-bot-api)
+- [ ] Реализовать обработку сообщений
+- [ ] Реализовать отправку ответов
+- [ ] Создать Whitelist пользователей
+- [ ] Интегрировать с message router
+
+**Интерфейс Connector:**
+```go
+type Connector interface {
+    Start(ctx context.Context) error
+    Stop() error
+    Events() <-chan Event
+    SendMessage(ctx context.Context, userID, message string) error
+}
+```
+
+### MVP.7 Supervised Mode (1 день)
+
+#### Задачи
+
+- [ ] Реализовать механизм подтверждения действий
+- [ ] Создать базовые правила подтверждения
+- [ ] Интегрировать в LLM response handling
+
+**Конфигурация:**
+```yaml
+supervised_mode:
+  enabled: true
+  rules:
+    - pattern: "rm.*"
+      require_confirmation: true
+    - pattern: "delete.*"
+      require_confirmation: true
+```
+
+### MVP.8 Orchestrator (basic) (1-2 дня)
+
+#### Задачи
+
+- [ ] Реализовать basic orchestrator
+- [ ] Простой flow: Event → LLM → Response
+- [ ] Управление контекстом (минимальное)
+- [ ] Создать базовые промпт-темплейты
+
+**Интерфейс Orchestrator:**
+```go
+type Orchestrator interface {
+    ProcessMessage(ctx context.Context, event Event) (string, error)
+}
+```
+
+### MVP.9 Тестирование и документация (1-2 дня)
+
+#### Задачи
+
+- [ ] Unit тесты для LLM provider
+- [ ] Unit тесты для Telegram connector
+- [ ] Интеграционный тест: Telegram → LLM → Telegram
+- [ ] Создать README с quickstart guide
+- [ ] Создать `.env.example`
+
+---
+
+## MVP+ Фаза: Расширение MVP (2-3 недели)
+
+**Цель:** Добавить Web UI, несколько LLM провайдеров, базовые навыки
+
+**MVP+ Scope:**
+- Web UI (basic чат)
+- Несколько LLM провайдеров (Anthropic + OpenAI + Ollama)
+- Базовые навыки (shell, files, http)
+- Quick Actions & Slash Commands
+- Templates (2-3 базовых)
+
+### MVP+.1 Web UI (1 неделя)
+
+#### Задачи
+
+#### 1.1 Frontend setup
+- [ ] Создать Svelte проект
+- [ ] Настроить структуру компонентов
+- [ ] Интегрировать с Go backend
+
+#### 1.2 Чат компонент
+- [ ] Создать компонент чата
+- [ ] Реализовать WebSocket подключение
+- [ ] Добавить Markdown рендеринг
+- [ ] Создать историю сообщений
+
+#### 1.3 HTTP API для Web UI
+- [ ] Создать HTTP сервер (chi/gin)
+- [ ] Реализовать endpoints:
+  - `POST /api/v1/chat` - отправить сообщение
+  - `GET /api/v1/sessions` - список сессий
+  - `GET /health` - health check
+- [ ] Реализовать middleware (logging, cors)
+
+#### 1.4 WebSocket API
+- [ ] Создать WebSocket сервер (gorilla/websocket)
+- [ ] Реализовать endpoint: `ws://host/ws/chat/{session}`
+- [ ] Создать manager для управления соединениями
+
+### MVP+.2 Несколько LLM провайдеров (3-4 дня)
+
+#### Задачи
+
+- [ ] Реализовать OpenAI API клиент
+- [ ] Реализовать Ollama API клиент (если не был в MVP)
+- [ ] Реализовать Anthropic API клиент (если не был в MVP)
+- [ ] Создать factory для провайдеров
+- [ ] Реализовать выбор провайдера по конфигурации
+- [ ] Добавить cost estimation
+
+### MVP+.3 Базовые навыки (4-5 дней)
+
+#### Задачи
+
+#### 3.1 Парсер SKILL.md
+- [ ] Реализовать парсер YAML frontmatter
+- [ ] Реализовать парсер Markdown тела
+- [ ] Создать валидацию схемы
+- [ ] Реализовать сканирование директорий навыков
+
+#### 3.2 Runtime для навыков
+- [ ] Создать runtime для Bash навыков
+- [ ] Реализовать sandbox (изоляция процессов)
+- [ ] Реализовать таймауты и лимиты ресурсов
+
+**Интерфейс SkillRuntime:**
+```go
+type SkillRuntime interface {
+    Execute(ctx context.Context, skill Skill, input map[string]interface{}) (map[string]interface{}, error)
+    Validate(skill Skill) error
+}
+```
+
+#### 3.3 Базовые навыки
+- [ ] `shell-run` - выполнение shell команд (с подтверждением)
+- [ ] `file-read` - чтение файлов
+- [ ] `file-write` - запись файлов
+- [ ] `http-request` - HTTP клиент
+
+### MVP+.4 Quick Actions & Slash Commands (2-3 дня)
+
+#### Задачи
+
+- [ ] Реализовать систему Quick Actions
+- [ ] Добавить предустановленные команды: `/status`, `/health`, `/ping`
+- [ ] Реализовать Slash Commands
+- [ ] Создать базовые команды: `/create`, `/doctor`
+
+**Конфигурация Quick Actions:**
+```yaml
+quick_actions:
+  - name: "status"
+    message: "Покажи статус системы"
+  - name: "health"
+    message: "Проверь здоровье системы"
+```
+
+### MVP+.5 Templates (2-3 дня)
+
+#### Задачи
+
+- [ ] Реализовать систему шаблонов
+- [ ] Создать 2-3 базовых шаблона:
+  - `python-bot` - Python бот на FastAPI
+  - `go-service` - Go микросервис
+  - `lambda-function` - AWS Lambda
+- [ ] Добавить команду `/create <template>`
+
+**Конфигурация Templates:**
+```yaml
+templates:
+  python-bot:
+    description: "Бот на Python с FastAPI"
+    files:
+      - main.py
+      - requirements.txt
+      - config.yaml
+    commands:
+      - "pip install -r requirements.txt"
+      - "python main.py"
+```
+
+### MVP+.6 Расширенное тестирование (1-2 дня)
+
+#### Задачи
+
+- [ ] Unit тесты для навыков
+- [ ] E2E тесты для полного цикла
+- [ ] Тестирование Web UI
+- [ ] Интеграционные тесты с реальными LLM API
 
 ---
 
@@ -528,9 +903,255 @@ type GenerateResponse struct {
 - [ ] Создать unit тесты для провайдеров
 - [ ] Создать интеграционные тесты с реальными API
 
+ ---
+
+## v1.0 Фаза: Расширенные возможности (4-6 недель)
+
+**Цель:** Полнофункциональный агент с фичами из clawgo/gru
+
+**v1.0 Scope:**
+- Discord connector
+- Email connector
+- Webhook connector
+- MCP Client
+- Delivery Providers (WhatsApp/Signal/iMessage)
+- TTS Engines (espeak-ng, Piper)
+- Ralph Loops (итеративная разработка)
+- Screenshot Handling
+- Live Deploy (Vercel/Railway)
+- Расширенные навыки (CI/CD, облака, HA)
+- Observability (metrics, health checks)
+- Полная документация
+
+### v1.0.1 Дополнительные коннекторы (1 неделя)
+
+#### Задачи
+
+#### 1.1 Discord Connector
+- [ ] Интегрировать Discord Bot API (discordgo)
+- [ ] Реализовать обработку сообщений
+- [ ] Реализовать поддержку embed сообщений
+- [ ] Создать Whitelist ролей и каналов
+- [ ] Интегрировать с message router
+
+#### 1.2 Email Connector
+- [ ] Реализовать IMAP для чтения почты
+- [ ] Реализовать SMTP для отправки уведомлений
+- [ ] Создать правила для email-триггеров
+- [ ] Интегрировать с message router
+
+#### 1.3 Webhook Connector
+- [ ] Реализовать HTTP endpoint для webhooks
+- [ ] Создать секретный ключ для валидации
+- [ ] Интегрировать с message router
+- [ ] Создать документацию по вебхукам
+
+### v1.0.2 MCP Client (3-4 дня)
+
+#### Задачи
+
+- [ ] Реализовать MCP клиент (Model Context Protocol)
+- [ ] Подключить стандартные MCP servers:
+  - `filesystem` - работа с файловой системой
+  - `github` - GitHub API
+  - `search` - поиск
+  - `database` - работа с БД
+- [ ] Создать конфигурацию MCP servers
+- [ ] Интегрировать с LLM для tool calling
+
+**Конфигурация MCP:**
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "node",
+      "args": ["@modelcontextprotocol/server-filesystem"]
+    },
+    "github": {
+      "command": "node",
+      "args": ["@modelcontextprotocol/server-github"]
+    }
+  }
+}
+```
+
+### v1.0.3 Delivery Providers (2-3 дня)
+
+#### Задачи
+
+- [ ] Реализовать абстракцию для Delivery Providers
+- [ ] Добавить поддержку WhatsApp
+- [ ] Добавить поддержку Signal
+- [ ] Добавить поддержку iMessage
+- [ ] Создать конфигурацию доставки по каналу
+
+**Интерфейс DeliveryProvider:**
+```go
+type DeliveryProvider interface {
+    SendMessage(ctx context.Context, to string, msg string) error
+}
+```
+
+**Конфигурация:**
+```yaml
+delivery:
+  default_channel: "telegram"
+  providers:
+    telegram:
+      bot_token: "${TELEGRAM_BOT_TOKEN}"
+    whatsapp:
+      api_key: "${WHATSAPP_API_KEY}"
+    signal:
+      phone_number: "+1234567890"
+    imessage:
+      email: "user@icloud.com"
+```
+
+### v1.0.4 TTS Engines (2-3 дня)
+
+#### Задачи
+
+- [ ] Реализовать абстракцию для TTS engines
+- [ ] Добавить поддержку espeak-ng (системный)
+- [ ] Добавить поддержку Piper (быстрые нейронные голоса)
+- [ ] Создать конфигурацию TTS
+- [ ] Интегрировать с Telegram (voice messages)
+
+**Интерфейс TTSEngine:**
+```go
+type TTSEngine interface {
+    Synthesize(ctx context.Context, text string) ([]byte, error)
+}
+```
+
+**Конфигурация:**
+```yaml
+tts:
+  engine: "piper"  # "espeak", "piper", "elevenlabs", "none"
+  voice: "ru-ru"
+  rate: 200
+  piper:
+    model_path: "./models/piper"
+  espeak:
+    voice: "ru"
+```
+
+### v1.0.5 Ralph Loops (3-4 дня)
+
+#### Задачи
+
+- [ ] Реализовать итеративный цикл разработки
+- [ ] Агент выполняет код
+- [ ] Запускает тесты
+- [ ] Если ошибки → исправляет и повторяет
+- [ ] Если нет ошибок → завершает
+- [ ] Создать логирование итераций
+
+**Конфигурация:**
+```yaml
+ralph_loops:
+  enabled: true
+  max_iterations: 5
+  auto_fix: true
+  test_command: "go test ./..."
+```
+
+### v1.0.6 Screenshot Handling (2-3 дня)
+
+#### Задачи
+
+- [ ] Реализовать загрузку изображений
+- [ ] Интегрировать Vision API (Claude/GPT-4V)
+- [ ] Создать prompt для анализа UI
+- [ ] Генерация HTML/CSS по скриншоту
+- [ ] Предпросмотр результата
+
+### v1.0.7 Live Deploy (2-3 дня)
+
+#### Задачи
+
+- [ ] Интегрировать Vercel API
+- [ ] Интегрировать Railway API
+- [ ] Реализовать команду `/deploy vercel`
+- [ ] Реализовать команду `/deploy railway`
+- [ ] Создать возврат URL после деплоя
+
+### v1.0.8 Расширенные навыки (1 неделя)
+
+#### Задачи
+
+- [ ] GitHub/GitLab API навыки
+- [ ] AWS/GCP/Azure навыки
+- [ ] Home Assistant навыки
+- [ ] Kubernetes навыки
+- [ ] Docker навыки
+- [ ] Monitoring навыки (Prometheus, Grafana)
+
+### v1.0.9 Observability (2-3 дня)
+
+#### Задачи
+
+- [ ] Реализовать `/metrics` endpoint (Prometheus)
+- [ ] Создать health checks
+- [ ] Добавить алерты (через Telegram)
+- [ ] Создать dashboard для метрик
+- [ ] Структурированные JSON-логи
+- [ ] Маскирование секретов
+
+### v1.0.10 Документация (3-4 дня)
+
+#### Задачи
+
+- [ ] Quickstart guide
+- [ ] API reference
+- [ ] Guide для создания навыков
+- [ ] Примеры конфигураций
+- [ ] Troubleshooting guide
+- [ ] MCP integration guide
+- [ ] Templates guide
+
 ---
 
-## Фаза 8: v1.0 расширения (4-6 недель)
+ ## v1.1+ Фаза: Дополнительные возможности (дополнительно)
+
+**Цель:** Расширенные фичи из clawgo для продвинутых пользователей
+
+### v1.1.1 mDNS Advertising (2-3 дня)
+
+#### Задачи
+
+- [ ] Реализовать mDNS объявление сервиса
+- [ ] Создать сервис `_nexflow-agent._tcp`
+- [ ] Реализовать команду `/discover`
+- [ ] Конфигурация через `-mdns-service`
+
+### v1.1.2 FIFO Streaming (2-3 дня)
+
+#### Задачи
+
+- [ ] Реализовать поддержку named pipes
+- [ ] Конфигурация через `-stdin` и `-stdin-file`
+- [ ] Интеграция с голосовыми инструментами
+- [ ] Документация по голосовому вводу
+
+### v1.1.3 Routing Plugin System (3-4 дня)
+
+#### Задачи
+
+- [ ] Создать плагинную архитектуру маршрутизации
+- [ ] Реализовать правила: по ключевым словам, контексту, конфигурации
+- [ ] Создать стандартный плагин "default"
+- [ ] Документация по созданию кастомных плагинов
+
+**Конфигурация:**
+```yaml
+router: "smart"
+rules:
+  - pattern: ".*код.*"
+    destination: "code-agent"
+  - pattern: ".*дом.*"
+    destination: "home-assistant"
+```
 
 ### Задачи
 
@@ -583,60 +1204,46 @@ type GenerateResponse struct {
 
 ---
 
-## Зависимости
+ ## Зависимости
 
 ```
-Phase 1 (Инфраструктура)
-  ├── Config
-  ├── Database
-  └── Logging
-
-Phase 2 (Core Gateway)
-  ├── Phase 1
-  ├── Message Router
-  ├── Orchestrator
-  └── API
-
-Phase 3 (Connectors)
-  ├── Phase 2
+MVP (Telegram + LLM)
+  ├── Проектная структура и конфигурация
+  ├── База данных (минимальная)
+  ├── Логирование
+  ├── Message Router (basic)
+  ├── LLM Provider (один)
   ├── Telegram Connector
-  ├── Discord Connector
-  └── Web UI Connector
+  ├── Orchestrator (basic)
+  └── Supervised Mode
 
-Phase 4 (Skills Layer)
-  ├── Phase 1
-  ├── SKILL.md Parser
-  ├── Skill Runtime
-  └── Basic Skills
+MVP+ (расширение)
+  ├── MVP
+  ├── Web UI (basic)
+  ├── Несколько LLM провайдеров
+  ├── Базовые навыки
+  ├── Quick Actions
+  ├── Slash Commands
+  └── Templates (базовые)
 
-Phase 5 (LLM Integration)
-  ├── Phase 2
-  ├── LLM Interface
-  ├── OpenAI Provider
-  ├── Ollama Provider
-  ├── Gemini Provider
-  ├── Custom Provider
-  └── Memory/Context
+v1.0 (полнофункциональный)
+  ├── MVP+
+  ├── Дополнительные коннекторы (Discord, Email, Webhook)
+  ├── MCP Client
+  ├── Delivery Providers
+  ├── TTS Engines
+  ├── Ralph Loops
+  ├── Screenshot Handling
+  ├── Live Deploy
+  ├── Расширенные навыки
+  ├── Observability
+  └── Документация
 
-Phase 6 (Web UI)
-  ├── Phase 2
-  ├── Frontend Setup
-  ├── Chat Component
-  ├── Dashboard
-  └── Config Manager
-
-Phase 7 (Observability & Testing)
-  ├── All previous phases
-  ├── Metrics
-  ├── Health Checks
-  └── Testing
-
-Phase 8 (v1.0 Extensions)
-  ├── All previous phases
-  ├── Additional Connectors
-  ├── Advanced Skills
-  ├── Marketplace
-  └── Documentation
+v1.1+ (дополнительно)
+  ├── v1.0
+  ├── mDNS Advertising
+  ├── FIFO Streaming
+  └── Routing Plugins
 ```
 
 ---
@@ -645,52 +1252,56 @@ Phase 8 (v1.0 Extensions)
 
 ### P0 (MVP блокеры)
 - Проектная структура и конфигурация
-- База данных
-- Message Router
-- HTTP API
-- LLM Provider (Anthropic + OpenAI + Ollama)
-- Telegram Connector
-- Базовые навыки (shell, files, http)
-- Web UI (базовый чат)
-
-### P1 (Критические для MVP)
-- WebSocket API
-- Orchestrator
-- Skill Runtime (Bash)
-- Memory (базовая)
+- База данных (минимальная)
 - Логирование
+- Message Router (basic)
+- LLM Provider (один: Anthropic OR OpenAI OR Ollama)
+- Telegram Connector
+- Orchestrator (basic)
+- Supervised Mode
+
+### P1 (Критические для MVP+)
+- Web UI (basic)
+- Несколько LLM провайдеров
+- Базовые навыки (shell, files, http)
+- Quick Actions
+- Slash Commands
+- Templates (2-3 базовых)
 - Базовое тестирование
 
-### P2 (Важные для MVP)
+### P2 (Важные для v1.0)
 - Discord Connector
-- Skill Runtime (Python, Node.js)
-- Semantic search
-- Observability (базовая)
-- Расширенное тестирование
-
-### P3 (v1.0)
 - Email Connector
 - Webhook Connector
-- Расширенные навыки (CI/CD, облака)
-- Marketplace навыков
-- Документация
+- MCP Client
+- Delivery Providers
+- TTS Engines (espeak-ng, Piper)
+- Ralph Loops
+- Screenshot Handling
+- Live Deploy
+- Расширенные навыки
+- Observability (metrics, health checks)
+- Полная документация
 
----
+### P3 (v1.1+)
+- mDNS Advertising
+- FIFO Streaming
+- Routing Plugins
+- Расширенные TTS (ElevenLabs)
+- Масштабирование
+
+ ---
 
 ## Оценка сроков
 
 | Фаза | Задачи | Оценка | Старт | Финиш |
 |------|--------|--------|-------|-------|
-| Phase 1 | Базовая инфраструктура | 1 неделя | - | - |
-| Phase 2 | Core Gateway и API | 1-2 недели | - | - |
-| Phase 3 | Connectors | 2-3 недели | - | - |
-| Phase 4 | Skills Layer | 2-3 недели | - | - |
-| Phase 5 | LLM Integration | 2-3 недели | - | - |
-| Phase 6 | Web UI | 1-2 недели | - | - |
-| Phase 7 | Observability и тестирование | 1-2 недели | - | - |
-| **MVP Total** | | **4-6 недель** | | |
-| Phase 8 | v1.0 расширения | 4-6 недель | - | - |
+| MVP | Telegram + LLM (один провайдер) | 2-3 недели | Январь 2026 | Январь 2026 |
+| MVP+ | Web UI + навыки + шаблоны | 2-3 недели | Январь 2026 | Февраль 2026 |
+| **MVP+ Total** | | **4-6 недель** | | |
+| v1.0 | Полнофункциональный агент | 4-6 недель | Март 2026 | Апрель 2026 |
 | **v1.0 Total** | | **8-12 недель** | | |
+| v1.1+ | Дополнительно | TBD | Q2 2026 | Q3 2026 |
 
 ---
 
@@ -698,5 +1309,7 @@ Phase 8 (v1.0 Extensions)
 
 1. Утвердить план с командой
 2. Разбить на задачи в трекере (GitHub Issues/Jira)
-3. Начать с Phase 1 (Базовая инфраструктура)
+3. Начать с MVP Фазы (Telegram + LLM)
 4. Еженедельные sync для отслеживания прогресса
+5. После MVP: переход к MVP+ (Web UI + навыки)
+6. После MVP+: переход к v1.0 (расширенные возможности)

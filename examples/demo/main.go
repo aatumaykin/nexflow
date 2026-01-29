@@ -32,7 +32,7 @@ func main() {
 	)
 
 	// Initialize database
-	db, err := database.NewDatabase(&cfg.Database, logger)
+	db, err := database.NewDatabase(&cfg.Database, database.WithLogger(logger))
 	if err != nil {
 		logger.Error("Failed to initialize database", "error", err)
 		os.Exit(1)

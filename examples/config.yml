@@ -2,9 +2,13 @@ server:
   host: "127.0.0.1"
   port: 8080
 
-database:
-  type: "sqlite"
-  path: "./data/nexflow.db"
+ database:
+   type: "sqlite"
+   path: "./data/nexflow.db"
+   migrations_path: "./migrations"
+   max_open_conns: 25
+   max_idle_conns: 25
+   conn_max_lifetime: 5m
 
 llm:
   default_provider: "openai"
