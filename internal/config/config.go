@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
+	"regexp"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -114,47 +116,114 @@ func Load(path string) (*Config, error) {
 }
 
 // expandEnvVars expands environment variable references in the config
+// This is a universal function that processes all string fields recursively
 func expandEnvVars(config *Config) error {
-	// Expand in LLM providers
-	for providerName, provider := range config.LLM.Providers {
-		updated := provider
-		if strings.Contains(provider.APIKey, "${") && strings.Contains(provider.APIKey, "}") {
-			updated.APIKey = expandVar(provider.APIKey)
-		}
-		if strings.Contains(provider.BaseURL, "${") && strings.Contains(provider.BaseURL, "}") {
-			updated.BaseURL = expandVar(provider.BaseURL)
-		}
-		config.LLM.Providers[providerName] = updated
+	return expandValue(reflect.ValueOf(config).Elem())
+}
+
+// expandValue recursively processes all string fields in a struct or map
+func expandValue(v reflect.Value) error {
+	// Skip invalid or unexported values
+	if !v.IsValid() {
+		return nil
 	}
 
-	// Expand in channels
-	if strings.Contains(config.Channels.Telegram.BotToken, "${") && strings.Contains(config.Channels.Telegram.BotToken, "}") {
-		config.Channels.Telegram.BotToken = expandVar(config.Channels.Telegram.BotToken)
+	switch v.Kind() {
+	case reflect.String:
+		if v.CanSet() {
+			v.SetString(expandAllEnvVars(v.String()))
+		}
+	case reflect.Struct:
+		// Skip unexported fields
+		for i := 0; i < v.NumField(); i++ {
+			field := v.Field(i)
+			// Check if field is exported and can be set
+			if field.CanInterface() && field.CanAddr() {
+				if err := expandValue(field); err != nil {
+					return err
+				}
+			}
+		}
+	case reflect.Map:
+		// Skip nil maps
+		if v.IsNil() {
+			return nil
+		}
+		// Create a new map to hold modified values
+		mapType := v.Type()
+		elemType := mapType.Elem()
+		newMap := reflect.MakeMapWithSize(mapType, v.Len())
+
+		for _, key := range v.MapKeys() {
+			value := v.MapIndex(key)
+			if !value.IsValid() {
+				continue
+			}
+
+			// Create a copy of the value to expand
+			newValue := reflect.New(elemType).Elem()
+			newValue.Set(value)
+
+			// Expand the copy
+			if err := expandValue(newValue); err != nil {
+				return err
+			}
+
+			newMap.SetMapIndex(key, newValue)
+		}
+
+		if v.CanSet() {
+			v.Set(newMap)
+		}
+	case reflect.Slice:
+		// Skip nil slices
+		if v.IsNil() {
+			return nil
+		}
+		// Process each element
+		for i := 0; i < v.Len(); i++ {
+			element := v.Index(i)
+			if element.CanAddr() && element.CanSet() {
+				if err := expandValue(element); err != nil {
+					return err
+				}
+			}
+		}
+	case reflect.Pointer:
+		// Skip nil pointers
+		if v.IsNil() {
+			return nil
+		}
+		// Dereference and process
+		if v.Elem().CanAddr() {
+			return expandValue(v.Elem())
+		}
 	}
 
 	return nil
 }
 
-// expandVar expands a single environment variable reference
-func expandVar(s string) string {
-	start := strings.Index(s, "${")
-	if start == -1 {
-		return s
-	}
-	end := strings.Index(s, "}")
-	if end == -1 || end <= start {
-		return s
-	}
+// expandAllEnvVars expands all environment variable references in a string
+// Supports multiple ${VAR} patterns in a single string
+func expandAllEnvVars(s string) string {
+	// Use regex to find all ${VAR_NAME} patterns
+	re := regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)\}`)
 
-	varName := s[start+2 : end]
-	varValue := os.Getenv(varName)
+	// Replace function that looks up each variable in the environment
+	result := re.ReplaceAllStringFunc(s, func(match string) string {
+		// Extract the variable name (remove ${ and })
+		varName := match[2 : len(match)-1]
+		varValue := os.Getenv(varName)
 
-	if varValue == "" {
-		// If environment variable is not set, keep the template
-		return s
-	}
+		if varValue == "" {
+			// If environment variable is not set, keep the template
+			return match
+		}
 
-	return s[:start] + varValue + s[end+1:]
+		return varValue
+	})
+
+	return result
 }
 
 // Validate validates the configuration
