@@ -2,7 +2,21 @@ package database
 
 import "context"
 
-// Database interface defines all database operations
+// Database is a legacy composite interface for backward compatibility.
+// It combines all repository methods into a single interface.
+//
+// DEPRECATED: Prefer using specific repository interfaces (UserRepository, SessionRepository, etc.)
+// directly instead of this monolithic interface following Interface Segregation Principle.
+//
+// New code should use individual repository interfaces:
+// - UserRepository for user operations
+// - SessionRepository for session operations
+// - MessageRepository for message operations
+// - TaskRepository for task operations
+// - SkillRepository for skill operations
+// - ScheduleRepository for schedule operations
+// - LogRepository for log operations
+// - Migration for database migrations
 type Database interface {
 	// Users
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
