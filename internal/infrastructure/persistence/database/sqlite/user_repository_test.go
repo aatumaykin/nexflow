@@ -122,7 +122,7 @@ func TestUserRepository_FindByID(t *testing.T) {
 	err := repo.Create(ctx, user)
 	require.NoError(t, err)
 
-	foundUser, err := repo.FindByID(ctx, user.ID)
+	foundUser, err := repo.FindByID(ctx, string(user.ID))
 	require.NoError(t, err)
 	assert.Equal(t, user.ID, foundUser.ID)
 	assert.Equal(t, user.Channel, foundUser.Channel)
@@ -205,11 +205,11 @@ func TestUserRepository_Delete(t *testing.T) {
 	err := repo.Create(ctx, user)
 	require.NoError(t, err)
 
-	err = repo.Delete(ctx, user.ID)
+	err = repo.Delete(ctx, string(user.ID))
 	require.NoError(t, err)
 
 	// Verify user is deleted
-	foundUser, err := repo.FindByID(ctx, user.ID)
+	foundUser, err := repo.FindByID(ctx, string(user.ID))
 	assert.Error(t, err)
 	assert.Nil(t, foundUser)
 }

@@ -24,7 +24,7 @@ func TestMigrations(t *testing.T) {
 	dbConfig := &DBConfig{
 		Type:           "sqlite",
 		Path:           dbPath,
-		MigrationsPath: "../../migrations",
+		MigrationsPath: "../../../../migrations",
 	}
 
 	db, err := sql.Open("sqlite3", dbPath)
