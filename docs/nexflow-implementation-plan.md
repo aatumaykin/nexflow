@@ -278,6 +278,96 @@ const (
 5. Сформировать system prompt с контекстом
 6. Отправить запрос в LLM
 
+### MVP.10 Workspace & Memory System (2-3 дня)
+
+#### Задачи
+
+#### 10.1 Структура Workspace
+- [ ] Создать структуру директорий workspace
+- [ ] Реализовать создание workspace с шаблонами
+- [ ] Добавить настройку `agents.defaults.workspace` в конфиг
+- [ ] Парсинг ENV подстановок `${VAR_NAME:default_value}`
+
+**Структура workspace:**
+```
+~/nexflow/
+├── AGENTS.md          # Инструкции агента + "memory"
+├── SOUL.md            # Личность, границы, тон, имя/emoji
+├── USER.md            # Профиль пользователя
+├── NOTS.md           # Локальные заметки пользователя
+└── memory/
+    ├── memory.md       # Долгосрочная память
+    └── YYYY-MM-DD.md  # Ежедневные логи
+```
+
+#### 10.2 Bootstrap Injection Module
+- [ ] Реализовать загрузку bootstrap файлов
+- [ ] Определить порядок инъекции: SOUL.md → USER.md → NOTS.md → memory files
+- [ ] Обработка пустых файлов (skip)
+- [ ] Обработка отсутствующих файлов (marker line)
+- [ ] Лимиты размера файлов (bootstrap_max_chars)
+- [ ] Инъекция в system prompt перед началом сессии
+- [ ] Настройка через `agents.defaults.skip_bootstrap: true`
+- [ ] Маркер усечения: `... [file truncated]`
+
+#### 10.3 Memory Manager
+- [ ] Реализовать чтение/запись memory/YYYY-MM-DD.md
+- [ ] Реализовать чтение/запись memory/memory.md
+- [ ] Автоматическое создание memory/ директории
+- [ ] Загрузка today + yesterday files
+- [ ] Защита: не загружать MEMORY.md в групповых чатах
+- [ ] Настройка через `agents.defaults.workspace`
+- [ ] Логирование всех операций с памятью
+
+#### 10.4 Initial Setup Wizard
+- [ ] Команда `nexflow setup` или `nexflow onboard`
+- [ ] Создание workspace с шаблонами
+- [ ] Интерактивные вопросы пользователю:
+  - Workspace путь (или дефолтный)
+  - Имя пользователя
+  - Как обращаться
+  - Timezone
+  - Имя агента
+  - Emoji агента
+- [ ] Генерация SOUL.md из ответов
+- [ ] Генерация USER.md из ответов
+- [ ] Копирование AGENTS.md из шаблона
+- [ ] Создание NOTS.md пустым
+- [ ] Создание memory/ директории
+- [ ] Создание memory/memory.md пустым
+- [ ] Skip если workspace уже существует (с флагом --force для перезаписи)
+
+#### 10.5 Templates for Bootstrap Files
+- [ ] Создать шаблон AGENTS.md (docs/templates/AGENTS.md)
+- [ ] Создать шаблон SOUL.md (docs/templates/SOUL.md)
+- [ ] Создать шаблон USER.md (docs/templates/USER.md)
+- [ ] Создать шаблон NOTS.md (docs/templates/NOTS.md)
+
+#### 10.6 Security Rules
+- [ ] Реализовать проверку: main session vs other session
+- [ ] Не инъектировать MEMORY.md в не-main сессиях
+- [ ] Не делиться личными данными в группах
+- [ ] Логирование всех операций с памятью
+- [ ] Предупреждение в логах при попытке загрузки MEMORY.md в группах
+
+**Конфигурация:**
+```yaml
+agents:
+  defaults:
+    workspace: "${NEXFLOW_WORKSPACE:~/nexflow}"
+    skip_bootstrap: false
+    bootstrap_max_chars: 20000
+```
+
+**ENV подстановка:**
+```bash
+# Дефолтный путь
+export NEXFLOW_WORKSPACE=""  # Использует ~/nexflow
+
+# Кастомный путь
+export NEXFLOW_WORKSPACE="/custom/path/to/workspace"
+```
+
 ### MVP.9 Тестирование и документация (1-2 дня)
 
 #### Задачи
@@ -873,10 +963,37 @@ type GenerateResponse struct {
 - [ ] Настройка через конфигурацию
 
 #### 5.9 Memory и контекст
-- [ ] Реализовать SQLite хранилище памяти
-- [ ] Создать Markdown профили (USER.md, WORKSPACE.md)
-- [ ] Реализовать semantic search (векторный поиск)
-- [ ] Создать менеджер контекста (context window management)
+- [x] Реализовать SQLite хранилище памяти
+- [x] Создать Markdown профили (USER.md, WORKSPACE.md)
+- [x] Реализовать semantic search (векторный поиск)
+- [x] Создать менеджер контекста (context window management)
+- [ ] Реализовать Bootstrap Injection Module
+- [ ] Реализовать Memory Manager (Markdown files)
+- [ ] Интеграция с Orchestrator
+
+**Bootstrap Files:**
+- [ ] AGENTS.md - инструкции для агента
+- [ ] SOUL.md - личность агента (+ имя/emoji)
+- [ ] USER.md - профиль пользователя
+- [ ] NOTS.md - локальные заметки пользователя
+
+**Memory Files:**
+- [ ] memory/memory.md - долгосрочная память
+- [ ] memory/YYYY-MM-DD.md - ежедневные логи
+
+**Конфигурация:**
+```yaml
+agents:
+  defaults:
+    workspace: "${NEXFLOW_WORKSPACE:~/nexflow}"
+    skip_bootstrap: false
+    bootstrap_max_chars: 20000
+```
+
+**Setup Wizard:**
+- [ ] `nexflow setup` команда
+- [ ] Интерактивное создание workspace
+- [ ] Генерация bootstrap файлов из шаблонов
 
 ---
 
@@ -1144,7 +1261,61 @@ ralph_loops:
 
 ---
 
- ## v1.1+ Фаза: Дополнительные возможности (дополнительно)
+## v1.0.11 Heartbeats & Memory Maintenance (3-4 дня)
+
+#### Задачи
+
+#### 11.1 Heartbeat System
+- [ ] Реализовать heartbeat polling
+- [ ] Настройка heartbeat prompt в конфиге
+- [ ] HEARTBEAT.md файл для задач
+- [ ] Проверка почты, календаря, уведомлений
+- [ ] batch проверки для оптимизации API calls
+- [ ] Настройка интервала проверки (interval_minutes)
+- [ ] Quiet hours (quiet_hours)
+
+#### 11.2 Memory Synthesis
+- [ ] Автоматическое обновление MEMORY.md из daily logs
+- [ ] Review recent `memory/YYYY-MM-DD.md` files
+- [ ] Идентификация значимых событий/уроков
+- [ ] Удаление устаревшей информации из memory.md
+- [ ] Триггер по heartbeat или manual
+
+#### 11.3 Proactive Work
+- [ ] Проверка git status проектов
+- [ ] Обновление документации
+- [ ] Коммит и push собственных изменений
+- [ ] Respect quiet time (23:00-08:00 по умолчанию)
+- [ ] Tracking состояния проверок (heartbeat-state.json)
+
+**Конфигурация:**
+```yaml
+heartbeats:
+  enabled: true
+  interval_minutes: 30
+  prompt: "Read HEARTBEAT.md if it exists. Follow it strictly. Do not infer or repeat old tasks. If nothing needs attention, reply HEARTBEAT_OK."
+  quiet_hours: "23:00-08:00"
+  checks:
+    - email
+    - calendar
+    - notifications
+    - weather
+```
+
+**Пример heartbeat-state.json:**
+```json
+{
+  "lastChecks": {
+    "email": 1703275200,
+    "calendar": 1703260800,
+    "weather": null
+  }
+}
+```
+
+---
+
+## v1.1+ Фаза: Дополнительные возможности (дополнительно)
 
 **Цель:** Расширенные фичи из clawgo для продвинутых пользователей
 
