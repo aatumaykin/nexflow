@@ -121,6 +121,7 @@ func (c *DIContainer) initUseCases() error {
 		c.messageRepo,
 		c.taskRepo,
 		c.llmProvider,
+		c.skillRuntime,
 		c.logger,
 	)
 

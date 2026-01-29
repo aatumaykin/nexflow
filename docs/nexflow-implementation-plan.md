@@ -92,6 +92,12 @@ channels:
 supervised_mode:
   enabled: true
 
+agents:
+  defaults:
+    workspace: "${NEXFLOW_WORKSPACE:~/nexflow}"
+    skip_bootstrap: false
+    bootstrap_max_chars: 20000
+
 logging:
   level: "info"
   format: "json"
@@ -235,16 +241,42 @@ supervised_mode:
 #### Задачи
 
 - [ ] Реализовать basic orchestrator
-- [ ] Простой flow: Event → LLM → Response
+- [ ] Простой flow: Event → Load Bootstrap → LLM → Response
 - [ ] Управление контекстом (минимальное)
 - [ ] Создать базовые промпт-темплейты
+- [ ] Интеграция с Memory Manager
+- [ ] Загрузка bootstrap файлов в начале сессии
 
 **Интерфейс Orchestrator:**
 ```go
 type Orchestrator interface {
     ProcessMessage(ctx context.Context, event Event) (string, error)
+    LoadBootstrapFiles(ctx context.Context, sessionID string) (BootstrapContext, error)
+    DetermineSessionType(ctx context.Context, sessionID string) (SessionType, error)
 }
+
+type BootstrapContext struct {
+    Soul    string // из SOUL.md
+    User     string // из USER.md
+    Notes    string // из NOTS.md
+    Memory   string // из memory/memory.md (только main session)
+    DailyLog string // из memory/YYYY-MM-DD.md (today + yesterday)
+}
+
+type SessionType int
+const (
+    SessionTypeMain SessionType = iota // Direct chat with human
+    SessionTypeGroup             // Group chat or shared context
+)
 ```
+
+**Процесс:**
+1. Определить тип сессии (main vs group)
+2. Загрузить SOUL.md, USER.md, NOTS.md (всегда)
+3. Если main session: загрузить memory/memory.md
+4. Загрузить memory/YYYY-MM-DD.md (today + yesterday)
+5. Сформировать system prompt с контекстом
+6. Отправить запрос в LLM
 
 ### MVP.9 Тестирование и документация (1-2 дня)
 

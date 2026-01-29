@@ -4,17 +4,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/atumaikin/nexflow/internal/domain/valueobject"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestNewLog(t *testing.T) {
 	// Arrange & Act
-	log := NewLog(LogLevelInfo, "module1", "test message", map[string]interface{}{"key": "value"})
+	log := NewLog(valueobject.LogLevelInfo, "module1", "test message", map[string]interface{}{"key": "value"})
 
 	// Assert
 	require.NotEmpty(t, log.ID)
-	assert.Equal(t, string(LogLevelInfo), log.Level)
+	assert.Equal(t, string(valueobject.LogLevelInfo), string(log.Level))
 	assert.Equal(t, "module1", log.Source)
 	assert.Equal(t, "test message", log.Message)
 	assert.Equal(t, `{"key":"value"}`, log.Metadata) // marshaled
@@ -23,7 +24,7 @@ func TestNewLog(t *testing.T) {
 
 func TestNewLog_EmptyMetadata(t *testing.T) {
 	// Arrange & Act
-	log := NewLog(LogLevelInfo, "module1", "test message", map[string]interface{}{})
+	log := NewLog(valueobject.LogLevelInfo, "module1", "test message", map[string]interface{}{})
 
 	// Assert
 	assert.Equal(t, "{}", log.Metadata)
@@ -31,7 +32,7 @@ func TestNewLog_EmptyMetadata(t *testing.T) {
 
 func TestLog_IsDebug(t *testing.T) {
 	// Arrange
-	log := NewLog(LogLevelDebug, "module1", "debug message", nil)
+	log := NewLog(valueobject.LogLevelDebug, "module1", "debug message", nil)
 
 	// Act & Assert
 	assert.True(t, log.IsDebug())
@@ -42,7 +43,7 @@ func TestLog_IsDebug(t *testing.T) {
 
 func TestLog_IsInfo(t *testing.T) {
 	// Arrange
-	log := NewLog(LogLevelInfo, "module1", "info message", nil)
+	log := NewLog(valueobject.LogLevelInfo, "module1", "info message", nil)
 
 	// Act & Assert
 	assert.False(t, log.IsDebug())
@@ -53,7 +54,7 @@ func TestLog_IsInfo(t *testing.T) {
 
 func TestLog_IsWarn(t *testing.T) {
 	// Arrange
-	log := NewLog(LogLevelWarn, "module1", "warn message", nil)
+	log := NewLog(valueobject.LogLevelWarn, "module1", "warn message", nil)
 
 	// Act & Assert
 	assert.False(t, log.IsDebug())
@@ -64,7 +65,7 @@ func TestLog_IsWarn(t *testing.T) {
 
 func TestLog_IsError(t *testing.T) {
 	// Arrange
-	log := NewLog(LogLevelError, "module1", "error message", nil)
+	log := NewLog(valueobject.LogLevelError, "module1", "error message", nil)
 
 	// Act & Assert
 	assert.False(t, log.IsDebug())
@@ -75,7 +76,7 @@ func TestLog_IsError(t *testing.T) {
 
 func TestLog_IsFromSource(t *testing.T) {
 	// Arrange
-	log := NewLog(LogLevelInfo, "module1", "message", nil)
+	log := NewLog(valueobject.LogLevelInfo, "module1", "message", nil)
 
 	// Act & Assert
 	assert.True(t, log.IsFromSource("module1"))
@@ -84,10 +85,10 @@ func TestLog_IsFromSource(t *testing.T) {
 
 func TestLog_DifferentLevels(t *testing.T) {
 	// Arrange
-	debugLog := NewLog(LogLevelDebug, "module", "msg", nil)
-	infoLog := NewLog(LogLevelInfo, "module", "msg", nil)
-	warnLog := NewLog(LogLevelWarn, "module", "msg", nil)
-	errorLog := NewLog(LogLevelError, "module", "msg", nil)
+	debugLog := NewLog(valueobject.LogLevelDebug, "module", "msg", nil)
+	infoLog := NewLog(valueobject.LogLevelInfo, "module", "msg", nil)
+	warnLog := NewLog(valueobject.LogLevelWarn, "module", "msg", nil)
+	errorLog := NewLog(valueobject.LogLevelError, "module", "msg", nil)
 
 	// Act & Assert
 	assert.True(t, debugLog.IsDebug())
@@ -101,9 +102,9 @@ func TestLog_DifferentLevels(t *testing.T) {
 
 func TestLog_DifferentSources(t *testing.T) {
 	// Arrange
-	log1 := NewLog(LogLevelInfo, "module1", "msg", nil)
-	log2 := NewLog(LogLevelInfo, "module2", "msg", nil)
-	log3 := NewLog(LogLevelInfo, "module1", "msg", nil)
+	log1 := NewLog(valueobject.LogLevelInfo, "module1", "msg", nil)
+	log2 := NewLog(valueobject.LogLevelInfo, "module2", "msg", nil)
+	log3 := NewLog(valueobject.LogLevelInfo, "module1", "msg", nil)
 
 	// Act & Assert
 	assert.True(t, log1.IsFromSource("module1"))
@@ -116,8 +117,8 @@ func TestLog_DifferentSources(t *testing.T) {
 
 func TestLog_UniqueIDs(t *testing.T) {
 	// Arrange
-	log1 := NewLog(LogLevelInfo, "module", "msg", nil)
-	log2 := NewLog(LogLevelInfo, "module", "msg", nil)
+	log1 := NewLog(valueobject.LogLevelInfo, "module", "msg", nil)
+	log2 := NewLog(valueobject.LogLevelInfo, "module", "msg", nil)
 
 	// Act & Assert
 	assert.NotEqual(t, log1.ID, log2.ID)
@@ -126,10 +127,10 @@ func TestLog_UniqueIDs(t *testing.T) {
 func TestLog_MultipleLogs(t *testing.T) {
 	// Arrange
 	logs := []*Log{
-		NewLog(LogLevelDebug, "module1", "debug msg", nil),
-		NewLog(LogLevelInfo, "module1", "info msg", nil),
-		NewLog(LogLevelWarn, "module2", "warn msg", nil),
-		NewLog(LogLevelError, "module2", "error msg", nil),
+		NewLog(valueobject.LogLevelDebug, "module1", "debug msg", nil),
+		NewLog(valueobject.LogLevelInfo, "module1", "info msg", nil),
+		NewLog(valueobject.LogLevelWarn, "module2", "warn msg", nil),
+		NewLog(valueobject.LogLevelError, "module2", "error msg", nil),
 	}
 
 	// Act & Assert

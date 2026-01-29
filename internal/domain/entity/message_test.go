@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/atumaikin/nexflow/internal/domain/valueobject"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -14,8 +15,8 @@ func TestNewUserMessage(t *testing.T) {
 
 	// Assert
 	require.NotEmpty(t, message.ID)
-	assert.Equal(t, "session-1", message.SessionID)
-	assert.Equal(t, string(RoleUser), message.Role)
+	assert.Equal(t, "session-1", string(message.SessionID))
+	assert.Equal(t, valueobject.RoleUser, message.Role)
 	assert.Equal(t, "Hello, world!", message.Content)
 	assert.WithinDuration(t, time.Now(), message.CreatedAt, time.Second)
 }
@@ -26,8 +27,8 @@ func TestNewAssistantMessage(t *testing.T) {
 
 	// Assert
 	require.NotEmpty(t, message.ID)
-	assert.Equal(t, "session-1", message.SessionID)
-	assert.Equal(t, string(RoleAssistant), message.Role)
+	assert.Equal(t, "session-1", string(message.SessionID))
+	assert.Equal(t, valueobject.RoleAssistant, message.Role)
 	assert.Equal(t, "Hi there!", message.Content)
 	assert.WithinDuration(t, time.Now(), message.CreatedAt, time.Second)
 }
@@ -55,9 +56,9 @@ func TestMessage_IsFromAssistant(t *testing.T) {
 func TestMessage_IsSystem(t *testing.T) {
 	// Arrange
 	message := &Message{
-		ID:        "msg-1",
-		SessionID: "session-1",
-		Role:      string(RoleSystem),
+		ID:        valueobject.MessageID("msg-1"),
+		SessionID: valueobject.SessionID("session-1"),
+		Role:      valueobject.RoleSystem,
 		Content:   "System message",
 		CreatedAt: time.Now(),
 	}
@@ -73,8 +74,8 @@ func TestMessage_IsPartOfSession(t *testing.T) {
 	message := NewUserMessage("session-1", "test")
 
 	// Act & Assert
-	assert.True(t, message.IsPartOfSession("session-1"))
-	assert.False(t, message.IsPartOfSession("session-2"))
+	assert.True(t, message.IsPartOfSession(valueobject.SessionID("session-1")))
+	assert.False(t, message.IsPartOfSession(valueobject.SessionID("session-2")))
 }
 
 func TestMessage_DifferentRoles(t *testing.T) {
@@ -82,17 +83,17 @@ func TestMessage_DifferentRoles(t *testing.T) {
 	userMsg := NewUserMessage("session-1", "user")
 	assistantMsg := NewAssistantMessage("session-1", "assistant")
 	systemMsg := &Message{
-		ID:        "msg-3",
-		SessionID: "session-1",
-		Role:      string(RoleSystem),
+		ID:        valueobject.MessageID("msg-3"),
+		SessionID: valueobject.SessionID("session-1"),
+		Role:      valueobject.RoleSystem,
 		Content:   "system",
 		CreatedAt: time.Now(),
 	}
 
 	// Act & Assert
-	assert.Equal(t, string(RoleUser), userMsg.Role)
-	assert.Equal(t, string(RoleAssistant), assistantMsg.Role)
-	assert.Equal(t, string(RoleSystem), systemMsg.Role)
+	assert.Equal(t, valueobject.RoleUser, userMsg.Role)
+	assert.Equal(t, valueobject.RoleAssistant, assistantMsg.Role)
+	assert.Equal(t, valueobject.RoleSystem, systemMsg.Role)
 }
 
 func TestMessage_MultipleMessages(t *testing.T) {
@@ -110,9 +111,9 @@ func TestMessage_MultipleMessages(t *testing.T) {
 	assert.True(t, msgs[1].IsFromAssistant())
 	assert.True(t, msgs[2].IsFromUser())
 
-	assert.True(t, msgs[0].IsPartOfSession(sessionID))
-	assert.True(t, msgs[1].IsPartOfSession(sessionID))
-	assert.True(t, msgs[2].IsPartOfSession(sessionID))
+	assert.True(t, msgs[0].IsPartOfSession(valueobject.SessionID(sessionID)))
+	assert.True(t, msgs[1].IsPartOfSession(valueobject.SessionID(sessionID)))
+	assert.True(t, msgs[2].IsPartOfSession(valueobject.SessionID(sessionID)))
 }
 
 func TestMessage_UniqueIDs(t *testing.T) {

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 
 	"github.com/atumaikin/nexflow/internal/domain/entity"
+	"github.com/atumaikin/nexflow/internal/domain/valueobject"
 	dbmodel "github.com/atumaikin/nexflow/internal/infrastructure/persistence/database"
 	"github.com/atumaikin/nexflow/internal/shared/utils"
 )
@@ -25,12 +26,12 @@ func TaskToDomain(dbTask *dbmodel.Task) *entity.Task {
 	}
 
 	return &entity.Task{
-		ID:        dbTask.ID,
-		SessionID: dbTask.SessionID,
+		ID:        valueobject.TaskID(dbTask.ID),
+		SessionID: valueobject.MustNewSessionID(dbTask.SessionID),
 		Skill:     dbTask.Skill,
 		Input:     dbTask.Input,
 		Output:    output,
-		Status:    dbTask.Status,
+		Status:    valueobject.MustNewTaskStatus(dbTask.Status),
 		Error:     taskErr,
 		CreatedAt: utils.ParseTimeRFC3339(dbTask.CreatedAt),
 		UpdatedAt: utils.ParseTimeRFC3339(dbTask.UpdatedAt),
@@ -56,12 +57,12 @@ func TaskToDB(task *entity.Task) *dbmodel.Task {
 	}
 
 	return &dbmodel.Task{
-		ID:        task.ID,
-		SessionID: task.SessionID,
+		ID:        string(task.ID),
+		SessionID: string(task.SessionID),
 		Skill:     task.Skill,
 		Input:     task.Input,
 		Output:    output,
-		Status:    task.Status,
+		Status:    string(task.Status),
 		Error:     taskErr,
 		CreatedAt: utils.FormatTimeRFC3339(task.CreatedAt),
 		UpdatedAt: utils.FormatTimeRFC3339(task.UpdatedAt),

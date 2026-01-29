@@ -4,6 +4,7 @@ import (
 	"database/sql"
 
 	"github.com/atumaikin/nexflow/internal/domain/entity"
+	"github.com/atumaikin/nexflow/internal/domain/valueobject"
 	dbmodel "github.com/atumaikin/nexflow/internal/infrastructure/persistence/database"
 	"github.com/atumaikin/nexflow/internal/shared/utils"
 )
@@ -20,8 +21,8 @@ func LogToDomain(dbLog *dbmodel.Log) *entity.Log {
 	}
 
 	return &entity.Log{
-		ID:        dbLog.ID,
-		Level:     dbLog.Level,
+		ID:        valueobject.LogID(dbLog.ID),
+		Level:     valueobject.MustNewLogLevel(dbLog.Level),
 		Source:    dbLog.Source,
 		Message:   dbLog.Message,
 		Metadata:  metadata,
@@ -42,8 +43,8 @@ func LogToDB(log *entity.Log) *dbmodel.Log {
 	}
 
 	return &dbmodel.Log{
-		ID:        log.ID,
-		Level:     log.Level,
+		ID:        string(log.ID),
+		Level:     string(log.Level),
 		Source:    log.Source,
 		Message:   log.Message,
 		Metadata:  metadata,

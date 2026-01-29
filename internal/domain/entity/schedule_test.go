@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/atumaikin/nexflow/internal/domain/valueobject"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,7 +16,7 @@ func TestNewSchedule(t *testing.T) {
 	// Assert
 	require.NotEmpty(t, schedule.ID)
 	assert.Equal(t, "my-skill", schedule.Skill)
-	assert.Equal(t, "0 * * * *", schedule.CronExpression)
+	assert.Equal(t, valueobject.CronExpression("0 * * * *"), schedule.CronExpression)
 	assert.Equal(t, `{"param": "value"}`, schedule.Input)
 	assert.True(t, schedule.Enabled)
 	assert.WithinDuration(t, time.Now(), schedule.CreatedAt, time.Second)
@@ -79,10 +80,10 @@ func TestSchedule_CronExpressions(t *testing.T) {
 	}
 
 	// Act & Assert
-	assert.Equal(t, "0 * * * *", schedules[0].CronExpression)
-	assert.Equal(t, "0 0 * * *", schedules[1].CronExpression)
-	assert.Equal(t, "*/5 * * * *", schedules[2].CronExpression)
-	assert.Equal(t, "0 9 * * 1-5", schedules[3].CronExpression)
+	assert.Equal(t, valueobject.CronExpression("0 * * * *"), schedules[0].CronExpression)
+	assert.Equal(t, valueobject.CronExpression("0 0 * * *"), schedules[1].CronExpression)
+	assert.Equal(t, valueobject.CronExpression("*/5 * * * *"), schedules[2].CronExpression)
+	assert.Equal(t, valueobject.CronExpression("0 9 * * 1-5"), schedules[3].CronExpression)
 }
 
 func TestSchedule_MultipleSchedulesForSameSkill(t *testing.T) {

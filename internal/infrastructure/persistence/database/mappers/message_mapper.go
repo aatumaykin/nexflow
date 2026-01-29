@@ -2,6 +2,7 @@ package mappers
 
 import (
 	"github.com/atumaikin/nexflow/internal/domain/entity"
+	"github.com/atumaikin/nexflow/internal/domain/valueobject"
 	dbmodel "github.com/atumaikin/nexflow/internal/infrastructure/persistence/database"
 	"github.com/atumaikin/nexflow/internal/shared/utils"
 )
@@ -13,9 +14,9 @@ func MessageToDomain(dbMessage *dbmodel.Message) *entity.Message {
 	}
 
 	return &entity.Message{
-		ID:        dbMessage.ID,
-		SessionID: dbMessage.SessionID,
-		Role:      dbMessage.Role,
+		ID:        valueobject.MessageID(dbMessage.ID),
+		SessionID: valueobject.MustNewSessionID(dbMessage.SessionID),
+		Role:      valueobject.MustNewMessageRole(dbMessage.Role),
 		Content:   dbMessage.Content,
 		CreatedAt: utils.ParseTimeRFC3339(dbMessage.CreatedAt),
 	}
@@ -28,9 +29,9 @@ func MessageToDB(message *entity.Message) *dbmodel.Message {
 	}
 
 	return &dbmodel.Message{
-		ID:        message.ID,
-		SessionID: message.SessionID,
-		Role:      message.Role,
+		ID:        string(message.ID),
+		SessionID: string(message.SessionID),
+		Role:      string(message.Role),
 		Content:   message.Content,
 		CreatedAt: utils.FormatTimeRFC3339(message.CreatedAt),
 	}

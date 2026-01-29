@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/atumaikin/nexflow/internal/domain/valueobject"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -14,7 +15,7 @@ func TestNewSession(t *testing.T) {
 
 	// Assert
 	require.NotEmpty(t, session.ID)
-	assert.Equal(t, "user-1", session.UserID)
+	assert.Equal(t, "user-1", string(session.UserID))
 	assert.WithinDuration(t, time.Now(), session.CreatedAt, time.Second)
 	assert.WithinDuration(t, time.Now(), session.UpdatedAt, time.Second)
 }
@@ -37,8 +38,8 @@ func TestSession_IsOwnedBy(t *testing.T) {
 	session := NewSession("user-1")
 
 	// Act & Assert
-	assert.True(t, session.IsOwnedBy("user-1"))
-	assert.False(t, session.IsOwnedBy("user-2"))
+	assert.True(t, session.IsOwnedBy(valueobject.UserID("user-1")))
+	assert.False(t, session.IsOwnedBy(valueobject.UserID("user-2")))
 }
 
 func TestSession_MultipleUsers(t *testing.T) {
@@ -48,13 +49,13 @@ func TestSession_MultipleUsers(t *testing.T) {
 	session3 := NewSession("user-1")
 
 	// Act & Assert
-	assert.Equal(t, "user-1", session1.UserID)
-	assert.Equal(t, "user-2", session2.UserID)
-	assert.Equal(t, "user-1", session3.UserID)
+	assert.Equal(t, "user-1", string(session1.UserID))
+	assert.Equal(t, "user-2", string(session2.UserID))
+	assert.Equal(t, "user-1", string(session3.UserID))
 
-	assert.True(t, session1.IsOwnedBy("user-1"))
-	assert.True(t, session3.IsOwnedBy("user-1"))
-	assert.False(t, session1.IsOwnedBy("user-2"))
+	assert.True(t, session1.IsOwnedBy(valueobject.UserID("user-1")))
+	assert.True(t, session3.IsOwnedBy(valueobject.UserID("user-1")))
+	assert.False(t, session1.IsOwnedBy(valueobject.UserID("user-2")))
 }
 
 func TestSession_UniqueIDs(t *testing.T) {

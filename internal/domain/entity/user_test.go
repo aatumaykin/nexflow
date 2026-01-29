@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/atumaikin/nexflow/internal/domain/valueobject"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -14,7 +15,7 @@ func TestNewUser(t *testing.T) {
 
 	// Assert
 	require.NotEmpty(t, user.ID)
-	assert.Equal(t, "telegram", user.Channel)
+	assert.Equal(t, valueobject.Channel("telegram"), user.Channel)
 	assert.Equal(t, "user123", user.ChannelID)
 	assert.WithinDuration(t, time.Now(), user.CreatedAt, time.Second)
 }
@@ -57,7 +58,7 @@ func TestUser_DifferentChannels(t *testing.T) {
 	user := NewUser("web", "webuser1")
 
 	// Act & Assert
-	assert.Equal(t, "web", user.Channel)
+	assert.Equal(t, valueobject.Channel("web"), user.Channel)
 	assert.Equal(t, "webuser1", user.ChannelID)
 	assert.NotEmpty(t, user.ID)
 }

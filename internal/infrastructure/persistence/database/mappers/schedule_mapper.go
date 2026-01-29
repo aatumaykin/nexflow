@@ -2,6 +2,7 @@ package mappers
 
 import (
 	"github.com/atumaikin/nexflow/internal/domain/entity"
+	"github.com/atumaikin/nexflow/internal/domain/valueobject"
 	dbmodel "github.com/atumaikin/nexflow/internal/infrastructure/persistence/database"
 	"github.com/atumaikin/nexflow/internal/shared/utils"
 )
@@ -13,9 +14,9 @@ func ScheduleToDomain(dbSchedule *dbmodel.Schedule) *entity.Schedule {
 	}
 
 	return &entity.Schedule{
-		ID:             dbSchedule.ID,
+		ID:             valueobject.ScheduleID(dbSchedule.ID),
 		Skill:          dbSchedule.Skill,
-		CronExpression: dbSchedule.CronExpression,
+		CronExpression: valueobject.MustNewCronExpression(dbSchedule.CronExpression),
 		Input:          dbSchedule.Input,
 		Enabled:        dbSchedule.Enabled == 1,
 		CreatedAt:      utils.ParseTimeRFC3339(dbSchedule.CreatedAt),
@@ -34,9 +35,9 @@ func ScheduleToDB(schedule *entity.Schedule) *dbmodel.Schedule {
 	}
 
 	return &dbmodel.Schedule{
-		ID:             schedule.ID,
+		ID:             string(schedule.ID),
 		Skill:          schedule.Skill,
-		CronExpression: schedule.CronExpression,
+		CronExpression: string(schedule.CronExpression),
 		Input:          schedule.Input,
 		Enabled:        enabled,
 		CreatedAt:      utils.FormatTimeRFC3339(schedule.CreatedAt),

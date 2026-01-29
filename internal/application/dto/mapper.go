@@ -5,14 +5,15 @@ import (
 	"time"
 
 	"github.com/atumaikin/nexflow/internal/domain/entity"
+	"github.com/atumaikin/nexflow/internal/domain/valueobject"
 )
 
 // ToEntity converts UserDTO to entity.User
 func (dto *UserDTO) ToEntity() *entity.User {
 	createdAt, _ := time.Parse(time.RFC3339, dto.CreatedAt)
 	return &entity.User{
-		ID:        dto.ID,
-		Channel:   dto.Channel,
+		ID:        valueobject.UserID(dto.ID),
+		Channel:   valueobject.MustNewChannel(dto.Channel),
 		ChannelID: dto.ChannelID,
 		CreatedAt: createdAt,
 	}
@@ -21,8 +22,8 @@ func (dto *UserDTO) ToEntity() *entity.User {
 // FromEntity converts entity.User to UserDTO
 func UserDTOFromEntity(user *entity.User) *UserDTO {
 	return &UserDTO{
-		ID:        user.ID,
-		Channel:   user.Channel,
+		ID:        string(user.ID),
+		Channel:   string(user.Channel),
 		ChannelID: user.ChannelID,
 		CreatedAt: user.CreatedAt.Format(time.RFC3339),
 	}
@@ -33,8 +34,8 @@ func (dto *SessionDTO) ToEntity() *entity.Session {
 	createdAt, _ := time.Parse(time.RFC3339, dto.CreatedAt)
 	updatedAt, _ := time.Parse(time.RFC3339, dto.UpdatedAt)
 	return &entity.Session{
-		ID:        dto.ID,
-		UserID:    dto.UserID,
+		ID:        valueobject.SessionID(dto.ID),
+		UserID:    valueobject.MustNewUserID(dto.UserID),
 		CreatedAt: createdAt,
 		UpdatedAt: updatedAt,
 	}
@@ -43,8 +44,8 @@ func (dto *SessionDTO) ToEntity() *entity.Session {
 // FromEntity converts entity.Session to SessionDTO
 func SessionDTOFromEntity(session *entity.Session) *SessionDTO {
 	return &SessionDTO{
-		ID:        session.ID,
-		UserID:    session.UserID,
+		ID:        string(session.ID),
+		UserID:    string(session.UserID),
 		CreatedAt: session.CreatedAt.Format(time.RFC3339),
 		UpdatedAt: session.UpdatedAt.Format(time.RFC3339),
 	}
@@ -54,9 +55,9 @@ func SessionDTOFromEntity(session *entity.Session) *SessionDTO {
 func (dto *MessageDTO) ToEntity() *entity.Message {
 	createdAt, _ := time.Parse(time.RFC3339, dto.CreatedAt)
 	return &entity.Message{
-		ID:        dto.ID,
-		SessionID: dto.SessionID,
-		Role:      dto.Role,
+		ID:        valueobject.MessageID(dto.ID),
+		SessionID: valueobject.MustNewSessionID(dto.SessionID),
+		Role:      valueobject.MustNewMessageRole(dto.Role),
 		Content:   dto.Content,
 		CreatedAt: createdAt,
 	}
@@ -65,9 +66,9 @@ func (dto *MessageDTO) ToEntity() *entity.Message {
 // FromEntity converts entity.Message to MessageDTO
 func MessageDTOFromEntity(message *entity.Message) *MessageDTO {
 	return &MessageDTO{
-		ID:        message.ID,
-		SessionID: message.SessionID,
-		Role:      message.Role,
+		ID:        string(message.ID),
+		SessionID: string(message.SessionID),
+		Role:      string(message.Role),
 		Content:   message.Content,
 		CreatedAt: message.CreatedAt.Format(time.RFC3339),
 	}
@@ -78,12 +79,12 @@ func (dto *TaskDTO) ToEntity() *entity.Task {
 	createdAt, _ := time.Parse(time.RFC3339, dto.CreatedAt)
 	updatedAt, _ := time.Parse(time.RFC3339, dto.UpdatedAt)
 	return &entity.Task{
-		ID:        dto.ID,
-		SessionID: dto.SessionID,
+		ID:        valueobject.TaskID(dto.ID),
+		SessionID: valueobject.MustNewSessionID(dto.SessionID),
 		Skill:     dto.Skill,
 		Input:     dto.Input,
 		Output:    dto.Output,
-		Status:    dto.Status,
+		Status:    valueobject.MustNewTaskStatus(dto.Status),
 		Error:     dto.Error,
 		CreatedAt: createdAt,
 		UpdatedAt: updatedAt,
@@ -93,12 +94,12 @@ func (dto *TaskDTO) ToEntity() *entity.Task {
 // FromEntity converts entity.Task to TaskDTO
 func TaskDTOFromEntity(task *entity.Task) *TaskDTO {
 	return &TaskDTO{
-		ID:        task.ID,
-		SessionID: task.SessionID,
+		ID:        string(task.ID),
+		SessionID: string(task.SessionID),
 		Skill:     task.Skill,
 		Input:     task.Input,
 		Output:    task.Output,
-		Status:    task.Status,
+		Status:    string(task.Status),
 		Error:     task.Error,
 		CreatedAt: task.CreatedAt.Format(time.RFC3339),
 		UpdatedAt: task.UpdatedAt.Format(time.RFC3339),
@@ -109,9 +110,9 @@ func TaskDTOFromEntity(task *entity.Task) *TaskDTO {
 func (dto *SkillDTO) ToEntity() *entity.Skill {
 	createdAt, _ := time.Parse(time.RFC3339, dto.CreatedAt)
 	return &entity.Skill{
-		ID:          dto.ID,
+		ID:          valueobject.SkillID(dto.ID),
 		Name:        dto.Name,
-		Version:     dto.Version,
+		Version:     valueobject.MustNewVersion(dto.Version),
 		Location:    dto.Location,
 		Permissions: dto.Permissions,
 		Metadata:    dto.Metadata,
@@ -122,9 +123,9 @@ func (dto *SkillDTO) ToEntity() *entity.Skill {
 // FromEntity converts entity.Skill to SkillDTO
 func SkillDTOFromEntity(skill *entity.Skill) *SkillDTO {
 	return &SkillDTO{
-		ID:          skill.ID,
+		ID:          string(skill.ID),
 		Name:        skill.Name,
-		Version:     skill.Version,
+		Version:     string(skill.Version),
 		Location:    skill.Location,
 		Permissions: skill.Permissions,
 		Metadata:    skill.Metadata,
@@ -136,9 +137,9 @@ func SkillDTOFromEntity(skill *entity.Skill) *SkillDTO {
 func (dto *ScheduleDTO) ToEntity() *entity.Schedule {
 	createdAt, _ := time.Parse(time.RFC3339, dto.CreatedAt)
 	return &entity.Schedule{
-		ID:             dto.ID,
+		ID:             valueobject.ScheduleID(dto.ID),
 		Skill:          dto.Skill,
-		CronExpression: dto.CronExpression,
+		CronExpression: valueobject.MustNewCronExpression(dto.CronExpression),
 		Input:          dto.Input,
 		Enabled:        dto.Enabled,
 		CreatedAt:      createdAt,
@@ -148,9 +149,9 @@ func (dto *ScheduleDTO) ToEntity() *entity.Schedule {
 // FromEntity converts entity.Schedule to ScheduleDTO
 func ScheduleDTOFromEntity(schedule *entity.Schedule) *ScheduleDTO {
 	return &ScheduleDTO{
-		ID:             schedule.ID,
+		ID:             string(schedule.ID),
 		Skill:          schedule.Skill,
-		CronExpression: schedule.CronExpression,
+		CronExpression: string(schedule.CronExpression),
 		Input:          schedule.Input,
 		Enabled:        schedule.Enabled,
 		CreatedAt:      schedule.CreatedAt.Format(time.RFC3339),

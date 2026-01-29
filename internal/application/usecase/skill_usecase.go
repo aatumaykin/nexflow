@@ -8,6 +8,7 @@ import (
 	"github.com/atumaikin/nexflow/internal/application/ports"
 	"github.com/atumaikin/nexflow/internal/domain/entity"
 	"github.com/atumaikin/nexflow/internal/domain/repository"
+	"github.com/atumaikin/nexflow/internal/domain/valueobject"
 	"github.com/atumaikin/nexflow/internal/shared/logging"
 )
 
@@ -117,7 +118,7 @@ func (uc *SkillUseCase) UpdateSkill(ctx context.Context, id string, req dto.Upda
 
 	// Update fields
 	if req.Version != "" {
-		skill.Version = req.Version
+		skill.Version = valueobject.MustNewVersion(req.Version)
 	}
 	if req.Location != "" {
 		skill.Location = req.Location

@@ -7,6 +7,7 @@ import (
 	"github.com/atumaikin/nexflow/internal/application/dto"
 	"github.com/atumaikin/nexflow/internal/domain/entity"
 	"github.com/atumaikin/nexflow/internal/domain/repository"
+	"github.com/atumaikin/nexflow/internal/domain/valueobject"
 	"github.com/atumaikin/nexflow/internal/shared/logging"
 )
 
@@ -148,7 +149,7 @@ func (uc *ScheduleUseCase) UpdateSchedule(ctx context.Context, id string, req dt
 
 	// Update fields
 	if req.CronExpression != "" {
-		schedule.CronExpression = req.CronExpression
+		schedule.CronExpression = valueobject.MustNewCronExpression(req.CronExpression)
 	}
 	if req.Input != nil {
 		inputJSON, err := dto.MapToString(req.Input)

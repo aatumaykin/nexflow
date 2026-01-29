@@ -2,6 +2,7 @@ package mappers
 
 import (
 	"github.com/atumaikin/nexflow/internal/domain/entity"
+	"github.com/atumaikin/nexflow/internal/domain/valueobject"
 	dbmodel "github.com/atumaikin/nexflow/internal/infrastructure/persistence/database"
 	"github.com/atumaikin/nexflow/internal/shared/utils"
 )
@@ -13,9 +14,9 @@ func SkillToDomain(dbSkill *dbmodel.Skill) *entity.Skill {
 	}
 
 	return &entity.Skill{
-		ID:          dbSkill.ID,
+		ID:          valueobject.SkillID(dbSkill.ID),
 		Name:        dbSkill.Name,
-		Version:     dbSkill.Version,
+		Version:     valueobject.MustNewVersion(dbSkill.Version),
 		Location:    dbSkill.Location,
 		Permissions: dbSkill.Permissions,
 		Metadata:    dbSkill.Metadata,
@@ -30,9 +31,9 @@ func SkillToDB(skill *entity.Skill) *dbmodel.Skill {
 	}
 
 	return &dbmodel.Skill{
-		ID:          skill.ID,
+		ID:          string(skill.ID),
 		Name:        skill.Name,
-		Version:     skill.Version,
+		Version:     string(skill.Version),
 		Location:    skill.Location,
 		Permissions: skill.Permissions,
 		Metadata:    skill.Metadata,

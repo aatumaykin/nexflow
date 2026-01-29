@@ -2,6 +2,7 @@ package mappers
 
 import (
 	"github.com/atumaikin/nexflow/internal/domain/entity"
+	"github.com/atumaikin/nexflow/internal/domain/valueobject"
 	dbmodel "github.com/atumaikin/nexflow/internal/infrastructure/persistence/database"
 	"github.com/atumaikin/nexflow/internal/shared/utils"
 )
@@ -13,8 +14,8 @@ func SessionToDomain(dbSession *dbmodel.Session) *entity.Session {
 	}
 
 	return &entity.Session{
-		ID:        dbSession.ID,
-		UserID:    dbSession.UserID,
+		ID:        valueobject.SessionID(dbSession.ID),
+		UserID:    valueobject.MustNewUserID(dbSession.UserID),
 		CreatedAt: utils.ParseTimeRFC3339(dbSession.CreatedAt),
 		UpdatedAt: utils.ParseTimeRFC3339(dbSession.UpdatedAt),
 	}
@@ -27,8 +28,8 @@ func SessionToDB(session *entity.Session) *dbmodel.Session {
 	}
 
 	return &dbmodel.Session{
-		ID:        session.ID,
-		UserID:    session.UserID,
+		ID:        string(session.ID),
+		UserID:    string(session.UserID),
 		CreatedAt: utils.FormatTimeRFC3339(session.CreatedAt),
 		UpdatedAt: utils.FormatTimeRFC3339(session.UpdatedAt),
 	}

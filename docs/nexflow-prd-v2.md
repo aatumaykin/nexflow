@@ -33,6 +33,8 @@ Nexflow говорит на русском и английском, UX/доки 
 - LLM integration (минимум один провайдер: Anthropic/OpenAI/Ollama)
 - Basic message routing
 - Simple chat responses
+- Workspace система с bootstrap файлами
+- Memory система (daily logs + long-term)
 - No skills required for MVP
 
 **Success Criteria:**
@@ -80,15 +82,58 @@ Nexflow говорит на русском и английском, UX/доки 
 ### 3. Память и контекст
 
 **Типы памяти:**
-- Долгосрочная: SQLite/Markdown (профиль, проекты, предпочтения)
+- Долгосрочная: memory.md в workspace + SQLite
+- Ежедневные логи: memory/YYYY-MM-DD.md (Markdown)
 - Сессионная: контекст текущего диалога
 - Кэш: результаты повторяющихся запросов
 
 **Функции:**
 - Semantic-search по памяти
 - Редактируемые "rules" и "skills hints"
+- Автоматическая загрузка в начале сессии
 
- ### 4. Skills (инструменты)
+### 3.5 Workspace система
+
+**Bootstrap файлы:**
+- `AGENTS.md` - инструкции агента + правила поведения
+- `SOUL.md` - личность агента (Core Truths, границы, тон, имя/emoji)
+- `USER.md` - профиль пользователя (имя, обращения, проекты, предпочтения)
+- `NOTES.md` - локальные заметки пользователя (камеры, SSH хосты, голосовые настройки)
+
+**Memory в Markdown:**
+- Долгосрочная: `memory/memory.md` - отфильтрованная память, решения, предпочтения
+- Ежедневные логи: `memory/YYYY-MM-DD.md` - сырые записи событий
+- Автосинхронизация: ручная в MVP, через heartbeats в v1.0
+
+**Workspace конфигурация:**
+- Путь: `agents.defaults.workspace` (по умолчанию `"${NEXFLOW_WORKSPACE:~/nexflow}"`)
+- Поддержка ENV переменных: `${VAR_NAME:default_value}`
+- Автоматическая инъекция bootstrap файлов в system prompt
+- Порядок инъекции: `SOUL.md → USER.md → NOTES.md → memory files`
+- Лимиты: `bootstrap_max_chars` (20000 по умолчанию)
+
+**Setup Wizard:**
+- Команда `nexflow setup` или `nexflow onboard`
+- Интерактивное создание workspace с шаблонами
+- Вопросы пользователю для профайлинга
+- Генерация SOUL.md, USER.md, AGENTS.md из ответов
+- Автоматическое создание memory/ директории
+
+**Безопасность:**
+- `memory/memory.md` загружается только в main session (direct chat)
+- Не загружать личную память в групповых чатах
+- Whitelist ресурсов и API ключей
+- Проверка типа сессии перед загрузкой memory
+
+**Initial Setup Workflow:**
+1. Запуск `nexflow setup`
+2. Выбор workspace пути (или дефолтный `~/nexflow`)
+3. Генерация bootstrap файлов из шаблонов
+4. Вопросы пользователю (имя, timezone, и т.д.)
+5. Создание структуры директорий
+6. Готово к использованию
+
+### 4. Skills (инструменты)
 
 **Базовый набор (MVP):**
 - `shell-run`: выполнение shell команд с подтверждением
@@ -109,19 +154,35 @@ Nexflow говорит на русском и английском, UX/доки 
 - Совместимость с Moltbot/Clawdbot
 - Плагины: Bash, Python, Node.js
 
+**Интеграция с Workspace:**
+
+Навыки могут:
+- Читать и писать файлы в workspace
+- Обновлять `memory/YYYY-MM-DD.md` и `memory/memory.md`
+- Получать контекст из bootstrap файлов
+- Использовать данные из `NOTES.md` (локальные настройки пользователя)
+
+**Пример:**
+```bash
+# Навык memory-write
+User: "Запомни, что я предпочитаю Railway для деплоя"
+Agent: [Обновляет memory/2026-01-30.md]
+Agent: [Обновляет memory/memory.md с новым предпочтением]
+```
+
 **Templates System** (изgru):
 - Шаблоны для быстрого создания стандартных проектов
 - Команды: `/create react-app`, `/create python-bot`, `/create lambda-function`
 - Консистентная структура проектов
 - YAML конфигурация шаблонов с файлами и командами
 
-**Slash Commands** (из gru):
+**Slash Commands** (изgru):
 - Структурированный CLI внутри чата
 - Команды начинаются с `/`
 - Примеры: `/create`, `/deploy`, `/doctor`, `/status`
 - Параметры и автодополнение
 
- ### 5. Безопасность и наблюдаемость
+### 5. Безопасность и наблюдаемость
 
 **Безопасность:**
 - Все действия логируются (время, вход, выход, статус)
@@ -214,7 +275,7 @@ Nexflow говорит на русском и английском, UX/доки 
 - **БД:** SQLite по умолчанию, опционально Postgres
 - **Frontend:** Svelte
 - **LLM:** Anthropic (Claude), OpenAI, Ollama, Google Gemini, z.ai, OpenRouter + кастомный провайдер
-- **Конфигурация:** YAML + JSON
+- **Конфигурация:** YAML + JSON с поддержкой ENV подстановки `${VAR_NAME:default_value}`
 - **Навыки:** Bash, Python, Node.js
 - **Деплой:** Docker/Docker Compose
 

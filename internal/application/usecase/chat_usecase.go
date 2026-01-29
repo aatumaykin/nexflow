@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/atumaikin/nexflow/internal/application/dto"
 	"github.com/atumaikin/nexflow/internal/application/ports"
@@ -15,12 +14,13 @@ import (
 
 // ChatUseCase handles chat-related business logic
 type ChatUseCase struct {
-	userRepo    repository.UserRepository
-	sessionRepo repository.SessionRepository
-	messageRepo repository.MessageRepository
-	taskRepo    repository.TaskRepository
-	llmProvider ports.LLMProvider
-	logger      logging.Logger
+	userRepo     repository.UserRepository
+	sessionRepo  repository.SessionRepository
+	messageRepo  repository.MessageRepository
+	taskRepo     repository.TaskRepository
+	llmProvider  ports.LLMProvider
+	skillRuntime ports.SkillRuntime
+	logger       logging.Logger
 }
 
 // NewChatUseCase creates a new ChatUseCase
@@ -30,15 +30,17 @@ func NewChatUseCase(
 	messageRepo repository.MessageRepository,
 	taskRepo repository.TaskRepository,
 	llmProvider ports.LLMProvider,
+	skillRuntime ports.SkillRuntime,
 	logger logging.Logger,
 ) *ChatUseCase {
 	return &ChatUseCase{
-		userRepo:    userRepo,
-		sessionRepo: sessionRepo,
-		messageRepo: messageRepo,
-		taskRepo:    taskRepo,
-		llmProvider: llmProvider,
-		logger:      logger,
+		userRepo:     userRepo,
+		sessionRepo:  sessionRepo,
+		messageRepo:  messageRepo,
+		taskRepo:     taskRepo,
+		llmProvider:  llmProvider,
+		skillRuntime: skillRuntime,
+		logger:       logger,
 	}
 }
 
@@ -59,7 +61,7 @@ func (uc *ChatUseCase) SendMessage(ctx context.Context, req dto.SendMessageReque
 	}
 
 	// Create new session (simplified - in real app, we'd manage active sessions)
-	session := entity.NewSession(user.ID)
+	session := entity.NewSession(string(user.ID))
 	if err := uc.sessionRepo.Create(ctx, session); err != nil {
 		return &dto.SendMessageResponse{
 			Success: false,
@@ -68,7 +70,7 @@ func (uc *ChatUseCase) SendMessage(ctx context.Context, req dto.SendMessageReque
 	}
 
 	// Save user message
-	userMessage := entity.NewUserMessage(session.ID, req.Message.Content)
+	userMessage := entity.NewUserMessage(string(session.ID), req.Message.Content)
 	if err := uc.messageRepo.Create(ctx, userMessage); err != nil {
 		return &dto.SendMessageResponse{
 			Success: false,
@@ -77,7 +79,7 @@ func (uc *ChatUseCase) SendMessage(ctx context.Context, req dto.SendMessageReque
 	}
 
 	// Get conversation history
-	messages, err := uc.messageRepo.FindBySessionID(ctx, session.ID)
+	messages, err := uc.messageRepo.FindBySessionID(ctx, string(session.ID))
 	if err != nil {
 		return &dto.SendMessageResponse{
 			Success: false,
@@ -89,7 +91,7 @@ func (uc *ChatUseCase) SendMessage(ctx context.Context, req dto.SendMessageReque
 	llmMessages := make([]ports.Message, 0, len(messages))
 	for _, msg := range messages {
 		llmMessages = append(llmMessages, ports.Message{
-			Role:    msg.Role,
+			Role:    string(msg.Role),
 			Content: msg.Content,
 		})
 	}
@@ -109,7 +111,7 @@ func (uc *ChatUseCase) SendMessage(ctx context.Context, req dto.SendMessageReque
 	}
 
 	// Save assistant message
-	assistantMessage := entity.NewAssistantMessage(session.ID, llmResp.Message.Content)
+	assistantMessage := entity.NewAssistantMessage(string(session.ID), llmResp.Message.Content)
 	if err := uc.messageRepo.Create(ctx, assistantMessage); err != nil {
 		uc.logger.Error("failed to save assistant message", "error", err)
 	}
@@ -121,7 +123,7 @@ func (uc *ChatUseCase) SendMessage(ctx context.Context, req dto.SendMessageReque
 	}
 
 	// Get updated messages for response
-	updatedMessages, err := uc.messageRepo.FindBySessionID(ctx, session.ID)
+	updatedMessages, err := uc.messageRepo.FindBySessionID(ctx, string(session.ID))
 	if err != nil {
 		uc.logger.Error("failed to get updated messages", "error", err)
 	}
@@ -191,7 +193,7 @@ func (uc *ChatUseCase) ExecuteSkill(ctx context.Context, sessionID, skillName st
 	}
 
 	// Create task
-	task := entity.NewTask(sessionID, skillName, string(inputJSON))
+	task := entity.NewTask(string(sessionID), skillName, string(inputJSON))
 	if err := uc.taskRepo.Create(ctx, task); err != nil {
 		return &dto.SkillExecutionResponse{
 			Success: false,

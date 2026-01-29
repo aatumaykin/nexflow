@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/atumaikin/nexflow/internal/domain/valueobject"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -22,7 +23,7 @@ func TestNewSkill(t *testing.T) {
 	// Assert
 	require.NotEmpty(t, skill.ID)
 	assert.Equal(t, name, skill.Name)
-	assert.Equal(t, version, skill.Version)
+	assert.Equal(t, valueobject.Version(version), skill.Version)
 	assert.Equal(t, location, skill.Location)
 	assert.Equal(t, `["read","write"]`, skill.Permissions) // marshaled
 	assert.Equal(t, `{"timeout":30}`, skill.Metadata)      // marshaled

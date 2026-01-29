@@ -2,6 +2,7 @@ package mappers
 
 import (
 	"github.com/atumaikin/nexflow/internal/domain/entity"
+	"github.com/atumaikin/nexflow/internal/domain/valueobject"
 	dbmodel "github.com/atumaikin/nexflow/internal/infrastructure/persistence/database"
 	"github.com/atumaikin/nexflow/internal/shared/utils"
 )
@@ -13,8 +14,8 @@ func UserToDomain(dbUser *dbmodel.User) *entity.User {
 	}
 
 	return &entity.User{
-		ID:        dbUser.ID,
-		Channel:   dbUser.Channel,
+		ID:        valueobject.UserID(dbUser.ID),
+		Channel:   valueobject.MustNewChannel(dbUser.Channel),
 		ChannelID: dbUser.ChannelUserID,
 		CreatedAt: utils.ParseTimeRFC3339(dbUser.CreatedAt),
 	}
@@ -27,8 +28,8 @@ func UserToDB(user *entity.User) *dbmodel.User {
 	}
 
 	return &dbmodel.User{
-		ID:            user.ID,
-		Channel:       user.Channel,
+		ID:            string(user.ID),
+		Channel:       string(user.Channel),
 		ChannelUserID: user.ChannelID,
 		CreatedAt:     utils.FormatTimeRFC3339(user.CreatedAt),
 	}
