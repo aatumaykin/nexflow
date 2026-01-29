@@ -23,7 +23,19 @@ type ChatUseCase struct {
 	logger       logging.Logger
 }
 
-// NewChatUseCase creates a new ChatUseCase
+// NewChatUseCase creates a new ChatUseCase with all required dependencies
+//
+// Parameters:
+//   - userRepo: Repository for user data access
+//   - sessionRepo: Repository for session data access
+//   - messageRepo: Repository for message data access
+//   - taskRepo: Repository for task data access
+//   - llmProvider: LLM provider for generating responses
+//   - skillRuntime: Skill runtime for executing skills
+//   - logger: Structured logger for logging
+//
+// Returns:
+//   - *ChatUseCase: Initialized chat use case
 func NewChatUseCase(
 	userRepo repository.UserRepository,
 	sessionRepo repository.SessionRepository,
@@ -45,6 +57,14 @@ func NewChatUseCase(
 }
 
 // SendMessage processes a user message and returns AI response
+//
+// Parameters:
+//   - ctx: Context for the operation
+//   - req: SendMessageRequest containing message and LLM options
+//
+// Returns:
+//   - *dto.SendMessageResponse: Response containing AI message and conversation history
+//   - error: Error if operation failed
 func (uc *ChatUseCase) SendMessage(ctx context.Context, req dto.SendMessageRequest) (*dto.SendMessageResponse, error) {
 	// Find or create user
 	user, err := uc.userRepo.FindByChannel(ctx, "web", req.UserID) // Default to web channel
