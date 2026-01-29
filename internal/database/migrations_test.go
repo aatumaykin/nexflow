@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/atumaikin/nexflow/internal/logging"
 )
 
 func TestMigrations(t *testing.T) {
@@ -20,8 +22,9 @@ func TestMigrations(t *testing.T) {
 
 	// Create DB instance
 	dbConfig := &DBConfig{
-		Type: "sqlite",
-		Path: dbPath,
+		Type:           "sqlite",
+		Path:           dbPath,
+		MigrationsPath: "../../migrations",
 	}
 
 	db, err := sql.Open("sqlite3", dbPath)
@@ -41,6 +44,7 @@ func TestMigrations(t *testing.T) {
 		Queries: queries,
 		db:      db,
 		config:  dbConfig,
+		logger:  logging.NewNoopLogger(), // use NoopLogger for tests
 	}
 
 	// Run migrations

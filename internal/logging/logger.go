@@ -150,3 +150,46 @@ func (l *SlogLogger) WarnContext(ctx context.Context, msg string, args ...any) {
 func (l *SlogLogger) ErrorContext(ctx context.Context, msg string, args ...any) {
 	l.logger.ErrorContext(ctx, msg, args...)
 }
+
+// NoopLogger is a no-op logger that implements Logger interface but does nothing.
+// It's useful for testing or when logging is not desired.
+type NoopLogger struct{}
+
+// NewNoopLogger creates a new no-op logger instance.
+func NewNoopLogger() Logger {
+	return &NoopLogger{}
+}
+
+// Debug logs nothing (no-op).
+func (l *NoopLogger) Debug(msg string, args ...any) {}
+
+// Info logs nothing (no-op).
+func (l *NoopLogger) Info(msg string, args ...any) {}
+
+// Warn logs nothing (no-op).
+func (l *NoopLogger) Warn(msg string, args ...any) {}
+
+// Error logs nothing (no-op).
+func (l *NoopLogger) Error(msg string, args ...any) {}
+
+// With returns itself (no-op).
+func (l *NoopLogger) With(args ...any) Logger {
+	return l
+}
+
+// WithContext returns itself (no-op).
+func (l *NoopLogger) WithContext(ctx context.Context) Logger {
+	return l
+}
+
+// DebugContext logs nothing (no-op).
+func (l *NoopLogger) DebugContext(ctx context.Context, msg string, args ...any) {}
+
+// InfoContext logs nothing (no-op).
+func (l *NoopLogger) InfoContext(ctx context.Context, msg string, args ...any) {}
+
+// WarnContext logs nothing (no-op).
+func (l *NoopLogger) WarnContext(ctx context.Context, msg string, args ...any) {}
+
+// ErrorContext logs nothing (no-op).
+func (l *NoopLogger) ErrorContext(ctx context.Context, msg string, args ...any) {}

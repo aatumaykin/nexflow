@@ -26,10 +26,21 @@ if err != nil {
 }
 
 // Создание подключения к базе данных
+// По умолчанию используется NoopLogger (не логирует)
 db, err := database.NewDatabase(&cfg.Database)
 if err != nil {
     log.Fatal(err)
 }
+
+// Или с кастомным логгером
+// logger, err := logging.New("info", "json")
+// if err != nil {
+//     log.Fatal(err)
+// }
+// db, err := database.NewDatabase(&cfg.Database, database.WithLogger(logger))
+// if err != nil {
+//     log.Fatal(err)
+// }
 defer db.Close()
 
 // Запуск миграций

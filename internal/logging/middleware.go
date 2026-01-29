@@ -5,8 +5,18 @@ import (
 	"time"
 )
 
-// Middleware creates a logging middleware that logs HTTP requests
-func Middleware(logger Logger) func(http.Handler) http.Handler {
+// Middleware creates a logging middleware that logs HTTP requests.
+// By default, it uses NoopLogger that does nothing.
+// Use WithMiddlewareLogger option to provide a custom logger.
+func Middleware(opts ...MiddlewareOption) func(http.Handler) http.Handler {
+	// Apply options with default NoopLogger
+	config := &middlewareConfig{
+		logger: NewNoopLogger(),
+	}
+	for _, opt := range opts {
+		opt(config)
+	}
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
@@ -15,7 +25,7 @@ func Middleware(logger Logger) func(http.Handler) http.Handler {
 			wrapped := &responseWriter{ResponseWriter: w}
 
 			// Log request
-			logger.Info("Request started",
+			config.logger.Info("Request started",
 				"method", r.Method,
 				"path", r.URL.Path,
 				"remote_addr", r.RemoteAddr,
@@ -26,7 +36,7 @@ func Middleware(logger Logger) func(http.Handler) http.Handler {
 
 			// Log response
 			duration := time.Since(start)
-			logger.Info("Request completed",
+			config.logger.Info("Request completed",
 				"method", r.Method,
 				"path", r.URL.Path,
 				"status", wrapped.status,
@@ -34,6 +44,21 @@ func Middleware(logger Logger) func(http.Handler) http.Handler {
 			)
 		})
 	}
+}
+
+// MiddlewareOption is a function that configures the logging middleware.
+type MiddlewareOption func(*middlewareConfig)
+
+// WithMiddlewareLogger sets the logger for the middleware.
+func WithMiddlewareLogger(logger Logger) MiddlewareOption {
+	return func(cfg *middlewareConfig) {
+		cfg.logger = logger
+	}
+}
+
+// middlewareConfig holds configuration for the logging middleware.
+type middlewareConfig struct {
+	logger Logger
 }
 
 // responseWriter wraps http.ResponseWriter to capture status code

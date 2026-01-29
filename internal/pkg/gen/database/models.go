@@ -4,9 +4,7 @@
 
 package database
 
-import (
-	"database/sql"
-)
+import "database/sql"
 
 type Log struct {
 	ID        string         `json:"id"`

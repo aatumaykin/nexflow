@@ -4,9 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/atumaikin/nexflow/internal/logging"
 	"github.com/google/uuid"
 )
 
@@ -114,6 +116,7 @@ func setupTestDBInstance(t *testing.T) *DB {
 	return &DB{
 		Queries: queries,
 		db:      db,
+		logger:  logging.NewNoopLogger(),
 	}
 }
 
@@ -124,6 +127,71 @@ func TestMain(m *testing.M) {
 	code := m.Run()
 
 	os.Exit(code)
+}
+
+// Test DBConfig validation
+
+func TestDBConfigValidate(t *testing.T) {
+	tests := []struct {
+		name    string
+		config  *DBConfig
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name:    "Valid SQLite config",
+			config:  &DBConfig{Type: "sqlite", Path: "./test.db"},
+			wantErr: false,
+		},
+		{
+			name:    "Valid PostgreSQL config",
+			config:  &DBConfig{Type: "postgres", Path: "postgres://localhost/test"},
+			wantErr: false,
+		},
+		{
+			name:    "Missing type",
+			config:  &DBConfig{Path: "./test.db"},
+			wantErr: true,
+			errMsg:  "database type is required",
+		},
+		{
+			name:    "Missing path",
+			config:  &DBConfig{Type: "sqlite"},
+			wantErr: true,
+			errMsg:  "database path is required",
+		},
+		{
+			name:    "Unsupported database type",
+			config:  &DBConfig{Type: "mysql", Path: "./test.db"},
+			wantErr: true,
+			errMsg:  "unsupported database type",
+		},
+		{
+			name:    "Empty config",
+			config:  &DBConfig{},
+			wantErr: true,
+			errMsg:  "database type is required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.config.Validate()
+			if tt.wantErr {
+				if err == nil {
+					t.Error("Validate() expected error but got nil")
+					return
+				}
+				if tt.errMsg != "" && !strings.Contains(err.Error(), tt.errMsg) {
+					t.Errorf("Validate() error = %v, want to contain %q", err, tt.errMsg)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Validate() unexpected error = %v", err)
+				}
+			}
+		})
+	}
 }
 
 // Test Users

@@ -2,6 +2,7 @@ package logging
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"os"
 	"strings"
@@ -324,4 +325,42 @@ func TestAllSecretFields(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNoopLogger(t *testing.T) {
+	logger := NewNoopLogger()
+
+	// Test all logging methods - they should not panic
+	t.Run("DoesNotPanic", func(t *testing.T) {
+		logger.Debug("debug message", "key", "value")
+		logger.Info("info message", "key", "value")
+		logger.Warn("warn message", "key", "value")
+		logger.Error("error message", "key", "value")
+	})
+
+	// Test With - should return same logger
+	t.Run("WithReturnsSelf", func(t *testing.T) {
+		loggerWith := logger.With("service", "test")
+		if loggerWith != logger {
+			t.Error("With() should return the same logger for NoopLogger")
+		}
+	})
+
+	// Test WithContext - should return same logger
+	t.Run("WithContextReturnsSelf", func(t *testing.T) {
+		ctx := context.Background()
+		loggerWithCtx := logger.WithContext(ctx)
+		if loggerWithCtx != logger {
+			t.Error("WithContext() should return the same logger for NoopLogger")
+		}
+	})
+
+	// Test context methods - they should not panic
+	t.Run("ContextMethodsDoNotPanic", func(t *testing.T) {
+		ctx := context.Background()
+		logger.DebugContext(ctx, "debug message", "key", "value")
+		logger.InfoContext(ctx, "info message", "key", "value")
+		logger.WarnContext(ctx, "warn message", "key", "value")
+		logger.ErrorContext(ctx, "error message", "key", "value")
+	})
 }
