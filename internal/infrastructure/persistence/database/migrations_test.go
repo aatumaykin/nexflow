@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/atumaikin/nexflow/internal/logging"
+	"github.com/atumaikin/nexflow/internal/shared/logging"
 )
 
 func TestMigrations(t *testing.T) {

@@ -1,7 +1,7 @@
 package database
 
 import (
-	"github.com/atumaikin/nexflow/internal/logging"
+	"github.com/atumaikin/nexflow/internal/shared/logging"
 )
 
 // Option is a function that configures database.

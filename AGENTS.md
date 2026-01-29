@@ -39,21 +39,46 @@ go run cmd/server/main.go
 
 ```
 nexflow/
-├── cmd/              # Entry points (main.go)
-├── internal/         # Private packages
-│   ├── config/       # Конфигурация
-│   ├── database/     # БД (SQLite/Postgres, SQLC)
-│   ├── logging/      # Структурированное логирование (slog)
-│   ├── channels/     # Connectors (Telegram, Discord, Web)
-│   ├── llm/         # LLM провайдеры + роутинг
-│   └── skills/      # Skills execution system
-├── pkg/              # Public libraries
-├── docs/
-│   └── rules/        # Модули правил
-├── migrations/       # SQL миграции
-├── skills/           # Навыки (SKILL.md)
-└── .cursor/rules/    # agent_behavior.mdc
+ ├── cmd/              # Entry points (main.go)
+ ├── internal/         # Private packages
+ │   ├── application/  # Application layer (Use Cases, DTOs, Ports)
+ │   │   ├── dto/     # Data Transfer Objects
+ │   │   ├── ports/   # Interfaces for external dependencies
+ │   │   └── usecase/ # Business logic (use cases)
+ │   ├── domain/       # Domain layer
+ │   │   ├── entity/  # Business entities
+ │   │   └── repository/ # Repository interfaces
+ │   ├── infrastructure/ # Infrastructure layer
+ │   │   └── persistence/ # Database implementations
+ │   │       └── database/sqlite/ # SQLite repositories
+ │   └── shared/       # Shared utilities
+ │       ├── config/   # Конфигурация
+ │       ├── logging/  # Структурированное логирование (slog)
+ │       └── utils/    # Utilities
+ ├── pkg/              # Public libraries
+ ├── docs/
+ │   └── rules/        # Модули правил
+ ├── migrations/       # SQL миграции
+ ├── skills/           # Навыки (SKILL.md)
+ └── .cursor/rules/    # agent_behavior.mdc
 ```
+
+### Архитектурные слои
+
+**Domain Layer** (`internal/domain/`)
+- Entities: User, Session, Message, Task, Skill, Schedule, Log
+- Repository interfaces: UserRepository, SessionRepository, etc.
+- Value Objects: TaskStatus, MessageRole, LogLevel
+
+**Application Layer** (`internal/application/`)
+- Use Cases: UserUseCase, ChatUseCase
+- DTOs: UserDTO, SessionDTO, MessageDTO, etc.
+- Ports: LLMProvider, Connector, SkillRuntime
+
+**Infrastructure Layer** (`internal/infrastructure/`)
+- Database: SQLite/PostgreSQL implementations
+- Channels: Telegram, Discord, Web connectors
+- LLM Providers: OpenAI, Anthropic, Ollama implementations
 
 ## Go-специфика (см. `docs/rules/projectrules.md`)
 

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/atumaikin/nexflow/internal/logging"
+	"github.com/atumaikin/nexflow/internal/shared/logging"
 	"github.com/google/uuid"
 )
 

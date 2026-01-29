@@ -1,7 +1,7 @@
 package database
 
 import (
-	gendb "github.com/atumaikin/nexflow/internal/pkg/gen/database"
+	gendb "github.com/atumaikin/nexflow/internal/infrastructure/persistence/database/gen"
 )
 
 // Re-export generated types

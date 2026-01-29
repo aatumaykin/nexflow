@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/atumaikin/nexflow/internal/config"
-	"github.com/atumaikin/nexflow/internal/logging"
+	"github.com/atumaikin/nexflow/internal/shared/config"
+	"github.com/atumaikin/nexflow/internal/shared/logging"
 )
 
 // DB is main database implementation

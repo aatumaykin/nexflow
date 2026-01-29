@@ -7,9 +7,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/atumaikin/nexflow/internal/config"
-	"github.com/atumaikin/nexflow/internal/database"
-	"github.com/atumaikin/nexflow/internal/logging"
+	"github.com/atumaikin/nexflow/internal/infrastructure/persistence/database"
+	"github.com/atumaikin/nexflow/internal/shared/config"
+	"github.com/atumaikin/nexflow/internal/shared/logging"
 )
 
 func main() {
