@@ -18,6 +18,7 @@ func TestLoadYAML(t *testing.T) {
 database:
   type: "sqlite"
   path: "./data/nexflow.db"
+  migrations_path: "./migrations"
 
 llm:
   default_provider: "openai"
@@ -83,7 +84,8 @@ func TestLoadJSON(t *testing.T) {
   },
   "database": {
     "type": "postgres",
-    "path": "/var/lib/nexflow.db"
+    "path": "/var/lib/nexflow.db",
+    "migrations_path": "./migrations"
   },
   "llm": {
     "default_provider": "anthropic",
@@ -165,6 +167,7 @@ func TestEnvVarExpansion(t *testing.T) {
 database:
   type: "sqlite"
   path: "./data/nexflow.db"
+  migrations_path: "./migrations"
 
 llm:
   default_provider: "openai"
@@ -229,6 +232,7 @@ func TestEnvVarExpansionWithCustomProvider(t *testing.T) {
 database:
   type: "sqlite"
   path: "./data/nexflow.db"
+  migrations_path: "./migrations"
 
 llm:
   default_provider: "custom"
@@ -288,6 +292,7 @@ func TestValidationErrors(t *testing.T) {
 database:
   type: "sqlite"
   path: "./data/nexflow.db"
+  migrations_path: "./migrations"
 llm:
   default_provider: "openai"
   providers:
@@ -318,6 +323,7 @@ logging:
 database:
   type: "sqlite"
   path: "./data/nexflow.db"
+  migrations_path: "./migrations"
 llm:
   default_provider: "openai"
   providers:
@@ -348,6 +354,7 @@ logging:
 database:
   type: "sqlite"
   path: "./data/nexflow.db"
+  migrations_path: "./migrations"
 llm:
   default_provider: "openai"
   providers:
@@ -429,35 +436,36 @@ func TestUniversalEnvVarExpansion(t *testing.T) {
 	configPath := filepath.Join(tmpDir, "config.yml")
 
 	yamlContent := `server:
-  host: "${TEST_HOST}"
-  port: 8080
+   host: "${TEST_HOST}"
+   port: 8080
 
 database:
-  type: "sqlite"
-  path: "${TEST_DB_PATH}"
+   type: "sqlite"
+   path: "${TEST_DB_PATH}"
+   migrations_path: "./migrations"
 
 llm:
-  default_provider: "openai"
-  providers:
-    openai:
-      api_key: "sk-test"
-      model: "gpt-4"
+   default_provider: "openai"
+   providers:
+     openai:
+       api_key: "sk-test"
+       model: "gpt-4"
 
 channels:
-  telegram:
-    bot_token: "test-token"
-    allowed_users: []
-  web:
-    enabled: true
+   telegram:
+     bot_token: "test-token"
+     allowed_users: []
+   web:
+     enabled: true
 
 skills:
-  directory: "${TEST_SKILLS_DIR}"
-  timeout_sec: 30
-  sandbox_enabled: true
+   directory: "${TEST_SKILLS_DIR}"
+   timeout_sec: 30
+   sandbox_enabled: true
 
 logging:
-  level: "${TEST_LOG_LEVEL}"
-  format: "json"
+   level: "${TEST_LOG_LEVEL}"
+   format: "json"
 `
 
 	if err := os.WriteFile(configPath, []byte(yamlContent), 0644); err != nil {
@@ -508,6 +516,7 @@ func TestMultipleEnvVarsInOneString(t *testing.T) {
 database:
   type: "sqlite"
   path: "./data/nexflow.db"
+  migrations_path: "./migrations"
 
 llm:
   default_provider: "custom"
@@ -572,6 +581,7 @@ func TestEnvVarsInSlice(t *testing.T) {
 database:
   type: "sqlite"
   path: "./data/nexflow.db"
+  migrations_path: "./migrations"
 
 llm:
   default_provider: "openai"
@@ -636,6 +646,7 @@ func TestEnvVarNotFound(t *testing.T) {
 database:
   type: "sqlite"
   path: "./data/nexflow.db"
+  migrations_path: "./migrations"
 
 llm:
   default_provider: "openai"
