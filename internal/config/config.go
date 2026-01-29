@@ -1,3 +1,5 @@
+// Package config provides configuration management for Nexflow.
+// It supports YAML and JSON configuration files with environment variable expansion.
 package config
 
 import (
@@ -10,6 +12,16 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+)
+
+// Constants for validation
+const (
+	MinPort        = 1
+	MaxPort        = 65535
+	DefaultTimeout = 30
+	ValidLevels    = "debug, info, warn, error, fatal"
+	ValidFormats   = "json, text"
+	EnvVarPattern  = `\$\{([A-Za-z_][A-Za-z0-9_]*)\}`
 )
 
 // Config represents the application configuration
@@ -28,16 +40,52 @@ type ServerConfig struct {
 	Port int    `json:"port" yaml:"port"`
 }
 
+// Validate validates the server configuration
+func (s *ServerConfig) Validate() error {
+	if s.Host == "" {
+		return fmt.Errorf("server.host is required")
+	}
+	if s.Port < MinPort || s.Port > MaxPort {
+		return fmt.Errorf("server.port must be between %d and %d", MinPort, MaxPort)
+	}
+	return nil
+}
+
 // DatabaseConfig represents database configuration
 type DatabaseConfig struct {
 	Type string `json:"type" yaml:"type"`
 	Path string `json:"path" yaml:"path"`
 }
 
+// Validate validates the database configuration
+func (d *DatabaseConfig) Validate() error {
+	if d.Type == "" {
+		return fmt.Errorf("database.type is required")
+	}
+	if d.Path == "" {
+		return fmt.Errorf("database.path is required")
+	}
+	return nil
+}
+
 // LLMConfig represents LLM provider configuration
 type LLMConfig struct {
 	DefaultProvider string                 `json:"default_provider" yaml:"default_provider"`
 	Providers       map[string]LLMProvider `json:"providers" yaml:"providers"`
+}
+
+// Validate validates the LLM configuration
+func (l *LLMConfig) Validate() error {
+	if l.DefaultProvider == "" {
+		return fmt.Errorf("llm.default_provider is required")
+	}
+	if len(l.Providers) == 0 {
+		return fmt.Errorf("at least one llm provider is required")
+	}
+	if _, ok := l.Providers[l.DefaultProvider]; !ok {
+		return fmt.Errorf("llm.default_provider '%s' not found in providers", l.DefaultProvider)
+	}
+	return nil
 }
 
 // LLMProvider represents a single LLM provider configuration
@@ -71,13 +119,43 @@ type SkillsConfig struct {
 	SandboxEnabled bool   `json:"sandbox_enabled" yaml:"sandbox_enabled"`
 }
 
+// Validate validates the skills configuration
+func (s *SkillsConfig) Validate() error {
+	if s.Directory == "" {
+		return fmt.Errorf("skills.directory is required")
+	}
+	if s.TimeoutSec <= 0 {
+		return fmt.Errorf("skills.timeout_sec must be positive")
+	}
+	return nil
+}
+
 // LoggingConfig represents logging configuration
 type LoggingConfig struct {
 	Level  string `json:"level" yaml:"level"`
 	Format string `json:"format" yaml:"format"`
 }
 
-// Load loads configuration from a file (YAML or JSON)
+// Validate validates the logging configuration
+func (l *LoggingConfig) Validate() error {
+	validLevels := map[string]bool{
+		"debug": true, "info": true, "warn": true, "error": true, "fatal": true,
+	}
+	if !validLevels[l.Level] {
+		return fmt.Errorf("logging.level must be one of: %s", ValidLevels)
+	}
+	validFormats := map[string]bool{
+		"json": true, "text": true,
+	}
+	if !validFormats[l.Format] {
+		return fmt.Errorf("logging.format must be one of: %s", ValidFormats)
+	}
+	return nil
+}
+
+// Load loads configuration from a file (YAML or JSON).
+// It expands environment variables in the format ${VAR_NAME} and validates the configuration.
+// Returns an error if the file cannot be read, parsed, or if the configuration is invalid.
 func Load(path string) (*Config, error) {
 	// Read file content
 	data, err := os.ReadFile(path)
@@ -207,7 +285,7 @@ func expandValue(v reflect.Value) error {
 // Supports multiple ${VAR} patterns in a single string
 func expandAllEnvVars(s string) string {
 	// Use regex to find all ${VAR_NAME} patterns
-	re := regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)\}`)
+	re := regexp.MustCompile(EnvVarPattern)
 
 	// Replace function that looks up each variable in the environment
 	result := re.ReplaceAllStringFunc(s, func(match string) string {
@@ -226,56 +304,22 @@ func expandAllEnvVars(s string) string {
 	return result
 }
 
-// Validate validates the configuration
+// Validate validates the configuration by validating all sub-configurations
 func (c *Config) Validate() error {
-	// Validate server config
-	if c.Server.Host == "" {
-		return fmt.Errorf("server.host is required")
+	if err := c.Server.Validate(); err != nil {
+		return err
 	}
-	if c.Server.Port <= 0 || c.Server.Port > 65535 {
-		return fmt.Errorf("server.port must be between 1 and 65535")
+	if err := c.Database.Validate(); err != nil {
+		return err
 	}
-
-	// Validate database config
-	if c.Database.Type == "" {
-		return fmt.Errorf("database.type is required")
+	if err := c.LLM.Validate(); err != nil {
+		return err
 	}
-	if c.Database.Path == "" {
-		return fmt.Errorf("database.path is required")
+	if err := c.Skills.Validate(); err != nil {
+		return err
 	}
-
-	// Validate LLM config
-	if c.LLM.DefaultProvider == "" {
-		return fmt.Errorf("llm.default_provider is required")
+	if err := c.Logging.Validate(); err != nil {
+		return err
 	}
-	if len(c.LLM.Providers) == 0 {
-		return fmt.Errorf("at least one llm provider is required")
-	}
-	if _, ok := c.LLM.Providers[c.LLM.DefaultProvider]; !ok {
-		return fmt.Errorf("llm.default_provider '%s' not found in providers", c.LLM.DefaultProvider)
-	}
-
-	// Validate skills config
-	if c.Skills.Directory == "" {
-		return fmt.Errorf("skills.directory is required")
-	}
-	if c.Skills.TimeoutSec <= 0 {
-		return fmt.Errorf("skills.timeout_sec must be positive")
-	}
-
-	// Validate logging config
-	validLevels := map[string]bool{
-		"debug": true, "info": true, "warn": true, "error": true, "fatal": true,
-	}
-	if !validLevels[c.Logging.Level] {
-		return fmt.Errorf("logging.level must be one of: debug, info, warn, error, fatal")
-	}
-	validFormats := map[string]bool{
-		"json": true, "text": true,
-	}
-	if !validFormats[c.Logging.Format] {
-		return fmt.Errorf("logging.format must be one of: json, text")
-	}
-
 	return nil
 }
