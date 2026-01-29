@@ -3,26 +3,27 @@ package entity
 import (
 	"time"
 
+	"github.com/atumaikin/nexflow/internal/domain/valueobject"
 	"github.com/atumaikin/nexflow/internal/shared/utils"
 )
 
 // Schedule represents a cron-based scheduled task.
 // Schedules allow automatic skill execution at specific times defined by cron expressions.
 type Schedule struct {
-	ID             string    `json:"id"`              // Unique identifier for the schedule
-	Skill          string    `json:"skill"`           // Name of the skill to execute
-	CronExpression string    `json:"cron_expression"` // Cron syntax (e.g., "0 * * * *")
-	Input          string    `json:"input"`           // Input parameters in JSON format
-	Enabled        bool      `json:"enabled"`         // Whether the schedule is active
-	CreatedAt      time.Time `json:"created_at"`      // Timestamp when the schedule was created
+	ID             valueobject.ScheduleID     `json:"id"`              // Unique identifier for the schedule
+	Skill          string                     `json:"skill"`           // Name of the skill to execute
+	CronExpression valueobject.CronExpression `json:"cron_expression"` // Cron syntax (e.g., "0 * * * *")
+	Input          string                     `json:"input"`           // Input parameters in JSON format
+	Enabled        bool                       `json:"enabled"`         // Whether the schedule is active
+	CreatedAt      time.Time                  `json:"created_at"`      // Timestamp when the schedule was created
 }
 
 // NewSchedule creates a new enabled schedule for the specified skill with a cron expression and input.
 func NewSchedule(skill, cronExpression, input string) *Schedule {
 	return &Schedule{
-		ID:             utils.GenerateID(),
+		ID:             valueobject.ScheduleID(utils.GenerateID()),
 		Skill:          skill,
-		CronExpression: cronExpression,
+		CronExpression: valueobject.MustNewCronExpression(cronExpression),
 		Input:          input,
 		Enabled:        true,
 		CreatedAt:      utils.Now(),

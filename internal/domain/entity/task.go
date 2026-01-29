@@ -25,11 +25,11 @@ type Task struct {
 func NewTask(sessionID, skill, input string) *Task {
 	now := utils.Now()
 	return &Task{
-		ID:        utils.GenerateID(),
-		SessionID: sessionID,
+		ID:        valueobject.TaskID(utils.GenerateID()),
+		SessionID: valueobject.MustNewSessionID(sessionID),
 		Skill:     skill,
 		Input:     input,
-		Status:    string(TaskStatusPending),
+		Status:    valueobject.TaskStatusPending,
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
@@ -37,49 +37,49 @@ func NewTask(sessionID, skill, input string) *Task {
 
 // SetRunning sets the task status to running and updates the timestamp.
 func (t *Task) SetRunning() {
-	t.Status = string(TaskStatusRunning)
+	t.Status = valueobject.TaskStatusRunning
 	t.UpdatedAt = utils.Now()
 }
 
 // SetCompleted sets the task status to completed with the output and updates the timestamp.
 func (t *Task) SetCompleted(output string) {
-	t.Status = string(TaskStatusCompleted)
+	t.Status = valueobject.TaskStatusCompleted
 	t.Output = output
 	t.UpdatedAt = utils.Now()
 }
 
 // SetFailed sets the task status to failed with an error message and updates the timestamp.
-func (t *Task) SetFailed(err error) {
-	t.Status = string(TaskStatusFailed)
-	if err != nil {
-		t.Error = err.Error()
+func (t *Task) SetFailed(err string) {
+	t.Status = valueobject.TaskStatusFailed
+	if err != "" {
+		t.Error = err
 	}
 	t.UpdatedAt = utils.Now()
 }
 
 // IsPending returns true if the task is pending.
 func (t *Task) IsPending() bool {
-	return t.Status == string(TaskStatusPending)
+	return t.Status == valueobject.TaskStatusPending
 }
 
 // IsRunning returns true if the task is currently running.
 func (t *Task) IsRunning() bool {
-	return t.Status == string(TaskStatusRunning)
+	return t.Status == valueobject.TaskStatusRunning
 }
 
 // IsCompleted returns true if the task completed successfully.
 func (t *Task) IsCompleted() bool {
-	return t.Status == string(TaskStatusCompleted)
+	return t.Status == valueobject.TaskStatusCompleted
 }
 
 // IsFailed returns true if the task failed.
 func (t *Task) IsFailed() bool {
-	return t.Status == string(TaskStatusFailed)
+	return t.Status == valueobject.TaskStatusFailed
 }
 
 // BelongsToSession returns true if the task belongs to the specified session.
-func (t *Task) BelongsToSession(sessionID string) bool {
-	return t.SessionID == sessionID
+func (t *Task) BelongsToSession(sessionID valueobject.SessionID) bool {
+	return t.SessionID.Equals(sessionID)
 }
 
 // GetInput parses and returns the input parameters as a map.

@@ -3,15 +3,16 @@ package entity
 import (
 	"time"
 
+	"github.com/atumaikin/nexflow/internal/domain/valueobject"
 	"github.com/atumaikin/nexflow/internal/shared/utils"
 )
 
 // Skill represents a registered skill that can be executed by the AI.
 // Skills are tools with specific permissions and metadata.
 type Skill struct {
-	ID          string                 `json:"id"`          // Unique identifier for the skill
+	ID          valueobject.SkillID    `json:"id"`          // Unique identifier for the skill
 	Name        string                 `json:"name"`        // Unique skill name
-	Version     string                 `json:"version"`     // Skill version (e.g., "1.0.0")
+	Version     valueobject.Version    `json:"version"`     // Skill version (e.g., "1.0.0")
 	Location    string                 `json:"location"`    // Path to skill directory
 	Permissions string                 `json:"permissions"` // JSON array of required permissions
 	Metadata    string                 `json:"metadata"`    // JSON metadata (timeout, description, etc.)
@@ -22,9 +23,9 @@ type Skill struct {
 // NewSkill creates a new skill with the specified name, version, location, permissions, and metadata.
 func NewSkill(name, version, location string, permissions []string, metadata map[string]interface{}) *Skill {
 	return &Skill{
-		ID:          utils.GenerateID(),
+		ID:          valueobject.SkillID(utils.GenerateID()),
 		Name:        name,
-		Version:     version,
+		Version:     valueobject.MustNewVersion(version),
 		Location:    location,
 		Permissions: utils.MarshalJSON(permissions),
 		Metadata:    utils.MarshalJSON(metadata),
