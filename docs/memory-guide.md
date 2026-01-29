@@ -1,124 +1,124 @@
-# Memory System Guide for Nexflow
+# Руководство по системе памяти для Nexflow
 
-## Overview
+## Обзор
 
-Nexflow uses a **hybrid memory system** combining:
-- Daily logs in Markdown
-- Long-term curated memory
-- Automatic session context
-- (v1.0+) Heartbeats for proactive memory maintenance
+Nexflow использует **гибридную систему памяти** объединяющую:
+- Ежедневные логи в Markdown
+- Долговременная отфильтрованная память
+- Автоматический контекст сессии
+- (v1.0+) Heartbeats для проактивного обновления памяти
 
-## Daily Logs: `memory/YYYY-MM-DD.md`
+## Ежедневные логи: `memory/YYYY-MM-DD.md`
 
-### Purpose
-Raw, unfiltered logs of what happens each day.
+### Назначение
+Сырые, нефильтрованные логи происходящего каждый день.
 
-### When to Use
-- Recording events as they happen
-- Logging decisions made
-- Capturing conversations or tasks
+### Когда использовать
+- Запись событий по мере их происходения
+- Логирование принятых решений
+- Запись бесед или задач
 
-### Format
-Free-form Markdown:
+### Формат
+Свободный формат Markdown:
 ```markdown
 # 2026-01-30
 
-## Morning
-User asked about deploying X project. Discussed deployment strategy with Vercel.
+## Утро
+Пользователь спросил о деплое проекта X. Обсуждали стратегию деплоя с Vercel.
 
-## Afternoon
-Decided to use Railway instead. Key factors: cost, ease of setup, automatic SSL.
+## День
+Решили использовать Railway вместо. Ключевые факторы: стоимость, простота настройки, автоматический SSL.
 
-## Evening
-Updated NOTES.md with new project structure.
+## Вечер
+Обновили NOTES.md с новой структурой проекта.
 ```
 
-### Automatic Loading
-- **Today** and **yesterday** files are loaded into context
-- Files are created automatically if they don't exist
-- Location: `memory/` directory in workspace
+### Автоматическая загрузка
+- **Сегодня** и **вчера** файлы загружаются в контекст
+- Файлы создаются автоматически если не существуют
+- Расположение: `memory/` директория в workspace
 
-## Long-term Memory: `memory/memory.md`
+## Долговременная память: `memory/memory.md`
 
-### Purpose
-Curated, distilled memories worth keeping long-term.
+### Назначение
+Отфильтрованная суть, которую стоит хранить надолго.
 
-### What Goes Here
-- **Decisions** (e.g., "Use Railway for X project")
-- **Preferences** (e.g., "Prefer Nova voice for TTS")
-- **Lessons learned** (e.g., "Always test deployments before 5 PM")
-- **Important context** (e.g., "User works at Company X on project Y")
-- **Open loops** (e.g., "Need to decide between A and B")
+### Что сюда помещать
+- **Решения** (например, "Использовать Railway для проекта X")
+- **Предпочтения** (например, "Предпочитать голос Nova для TTS")
+- **Извлеченные уроки** (например, "Всегда тестировать деплои до 17:00")
+- **Важный контекст** (например, "Пользователь работает в компании X над проектом Y")
+- **Открытые циклы** (например, "Нужно решить между A и B")
 
-### What Does NOT Go Here
-- Secrets (unless explicitly requested)
-- Trivial daily events
-- Temporary information
-- Duplicate information
+### Чего НЕ должно быть здесь
+- Секреты (если явно не просили их хранить)
+- Тривиальные ежедневные события
+- Временная информация
+- Дубликаты
 
-### Security Rule
-**MEMORY.md is ONLY loaded in main session** (direct chat).
+### Правило безопасности
+**MEMORY.md загружается ТОЛЬКО в основной сессии** (прямой чат).
 
-**Does NOT load in:**
-- Group chats
-- Shared contexts
-- Sessions with other people
+**НЕ загружается в:**
+- Групповые чаты
+- Общие контексты
+- Сессии с другими людьми
 
-This prevents personal information from leaking to strangers.
+Это предотвращает утечку личной информации к незнакомцам.
 
-## Memory Synthesis (v1.0+)
+## Синтез памяти (v1.0+)
 
-When heartbeats are enabled, the agent periodically:
-1. Reads recent `memory/YYYY-MM-DD.md` files
-2. Identifies significant events, lessons, or insights
-3. Updates `memory/memory.md` with distilled learnings
-4. Removes outdated information from memory.md
+Когда включены heartbeats, агент периодически:
+1. Читает последние `memory/YYYY-MM-DD.md` файлы
+2. Идентифицирует значимые события, уроки или инсайты
+3. Обновляет `memory/memory.md` с отфильтрованной сутью
+4. Удаляет устаревшую информацию из memory.md
 
-## "Text > Brain" Rule
+## Правило "Текст > Мозг"
 
-**Critical:** Agent's memory is limited between sessions. If you want to remember something:
-- **WRITE IT TO A FILE** (`memory/YYYY-MM-DD.md` or `memory/memory.md`)
-- Do NOT rely on "mental notes" — they don't survive session restarts
+**Критически:** Память агента ограничена между сессиями. Если вы хотите что-то запомнить:
+- **ЗАПИШИТЕ ЭТО В ФАЙЛ** (`memory/YYYY-MM-DD.md` или `memory/memory.md`)
+- НЕ полагайтесь на "мысленные заметки" — они не переживают перезапуска сессии
 
-## Example Workflow
+## Пример рабочего процесса
 
-### During a session:
+### Во время сессии:
 ```bash
-User: "Remember to use Railway for X project"
-Agent: [Updates memory/2026-01-30.md with decision]
+Пользователь: "Запомни использовать Railway для проекта X"
+Агент: [Обновляет memory/2026-01-30.md с решением]
 ```
 
-### At the end of the day:
+### В конце дня:
 ```bash
-User: "Summarize today"
-Agent: [Reads memory/2026-01-30.md]
-Agent: [Updates memory/memory.md with key decisions]
+Пользователь: "Подведи итоги дня"
+Агент: [Читает memory/2026-01-30.md]
+Агент: [Обновляет memory/memory.md с ключевыми решениями]
 ```
 
-### In a future session:
+### В будущей сессии:
 ```bash
-Agent: [Loads memory/memory.md]
-Agent: "Based on past decisions, you prefer Railway for X project deployments. Should I use it now?"
+Агент: [Загружает memory/memory.md]
+Агент: "На основе прошлых решений вы предпочитаете Railway для деплоя проектов X. Использовать сейчас?"
 ```
 
-## Best Practices
+## Лучшие практики
 
-1. **Write immediately** — Don't wait until "later"
-2. **Be specific** — Capture context, not just conclusions
-3. **Update regularly** — Review and prune outdated info
-4. **Respect security** — Don't load personal memory in shared contexts
-5. **Curate wisely** — MEMORY.md should be distilled wisdom, not raw logs
+1. **Пишите сразу** — Не ждите "потом"
+2. **Будьте конкретными** — Зафиксируйте контекст, а не только выводы
+3. **Обновляйте регулярно** — Просматривайте и удаляйте устаревшую информацию
+4. **Уважайте безопасность** — Не загружайте личную память в общих контекстах
+5. **Отфильтровывайте мудро** — MEMORY.md должна быть отфильтрованной сутью, а не сырыми логами
 
-## Configuration
+## Конфигурация
 
-Memory location:
+Расположение памяти:
 ```yaml
 agents:
   defaults:
     workspace: "${NEXFLOW_WORKSPACE:~/nexflow}"
 ```
 
-Disable memory loading:
+Отключить загрузку памяти:
 ```yaml
 agents:
   defaults:

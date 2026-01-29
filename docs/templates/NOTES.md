@@ -1,31 +1,31 @@
 ---
-summary: "Workspace template for NOTES.md"
+summary: "Шаблон для NOTES.md"
 read_when:
-  - Bootstrapping a workspace manually
+  - Ручное создание workspace
 ---
-# NOTES.md - Local Notes
+# NOTES.md - Локальные заметки
 
-Skills define *how* tools work. This file is for *your* specifics — stuff that's unique to your setup.
+Навыки определяют *как* работают инструменты. Этот файл для *ваших* специфик — то, что уникально для вашего окружения.
 
-## What Goes Here
+## Что сюда помещать
 
-Things like:
-- Camera names and locations
-- SSH hosts and aliases
-- Preferred voices for TTS
-- Speaker/room names
-- Device nicknames
-- Anything environment-specific
+Такие вещи как:
+- Имена и расположения камер
+- SSH хосты и алиасы
+- Предпочитаемые голоса для TTS
+- Имена колонок/комнат
+- Никнеймы устройств
+- Всё что специфично для окружения
 
-## Examples
+## Примеры
 
-### Cameras
-- living-room → Main area, 180° wide angle
-- front-door → Entrance, motion-triggered
+### Камеры
+- living-room → Основная комната, 180° широкоугольный
+- front-door → Вход, срабатывает по движению
 
 ### SSH
 - home-server → 192.168.1.100, user: admin
 
 ### TTS
-- Preferred voice: "Nova" (warm, slightly British)
-- Default speaker: Kitchen HomePod
+- Предпочитаемый голос: "Nova" (тёплый, слегка британский)
+- Колонка по умолчанию: Kitchen HomePod

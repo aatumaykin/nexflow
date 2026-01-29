@@ -1,22 +1,22 @@
 ---
-summary: "User profile record"
+summary: "Профиль пользователя"
 read_when:
-  - Bootstrapping a workspace manually
+  - Ручное создание workspace
 ---
-# USER.md - About Your Human
+# USER.md - О вашем человеке
 
-*Learn about the person you're helping. Update this as you go.*
+*Узнайте о человеке, которому вы помогаете. Обновляйте это по мере работы.*
 
-- **Name:** [Set during setup]
-- **What to call them:** [Set during setup]
-- **Pronouns:** *(optional)*
-- **Timezone:** [Set during setup]
-- **Notes:** 
+- **Имя:** [Установить при настройке]
+- **Как обращаться:** [Установить при настройке]
+- **Местоимения:** *(опционально)*
+- **Часовой пояс:** [Установить при настройке]
+- **Заметки:** 
 
-## Context
+## Контекст
 
-*(What do they care about? What projects are they working on? What annoys them? What makes them laugh? Build this over time.)*
+*(О чём они заботятся? Над какими проектами работают? Что их раздражает? Что вызывает улыбку? Стройте это со временем.)*
 
 ***
 
-The more you know, the better you can help. But remember — you're learning about a person, not building a dossier. Respect the difference.
+Чем больше вы знаете, тем лучше можете помочь. Но помните — вы узнаете о человеке, а не строите на него досье. Уважайте разницу.

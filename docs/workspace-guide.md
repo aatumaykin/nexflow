@@ -1,152 +1,152 @@
-# Workspace Guide for Nexflow
+# Руководство по Workspace для Nexflow
 
-## Overview
+## Обзор
 
-Nexflow uses a **workspace-based** system for managing agent personality, user context, and memory. The workspace is automatically loaded and injected into the agent's context at the start of each session.
+Nexflow использует **workspace-based** систему для управления личностью агента, контекстом пользователя и памятью. Workspace автоматически загружается и инжектируется в контекст агента в начале каждой сессии.
 
-## Workspace Location
+## Расположение Workspace
 
-By default: `~/nexflow`
+По умолчанию: `~/nexflow`
 
-Can be customized through an environment variable:
+Можно настроить через переменную окружения:
 ```bash
 export NEXFLOW_WORKSPACE="/custom/path/to/workspace"
 ```
 
-Or in configuration:
+Или в конфигурации:
 ```yaml
 agents:
   defaults:
     workspace: "${NEXFLOW_WORKSPACE:~/nexflow}"
 ```
 
-## Bootstrap Files
+## Bootstrap файлы
 
-These files define who the agent is, who it helps, and how it behaves.
+Эти файлы определяют кто такой агент, кому он помогает и как себя ведёт.
 
-### SOUL.md - Agent Identity
-Defines the agent's personality, boundaries, and core truths.
+### SOUL.md - Личность агента
+Определяет личность агента, границы и основные истины.
 
-**Contents:**
-- Core Truths (how to behave)
-- Identity (name, emoji)
-- Boundaries (what to do/not do)
-- Vibe (communication style)
+**Содержимое:**
+- Основные истины (как себя вести)
+- Личность (имя, эмодзи)
+- Границы (что делать/не делать)
+- Тон (стиль общения)
 
-**When updated:** Tell the user — it's the agent's "soul"
+**Когда обновляется:** Скажите пользователю — это душа агента, и он должен знать об этом.
 
-### USER.md - User Profile
-Defines who the agent is helping.
+### USER.md - Профиль пользователя
+Определяет кому агент помогает.
 
-**Contents:**
-- User's name
-- What to call them
-- Pronouns
-- Timezone
-- Context (projects, preferences)
+**Содержимое:**
+- Имя пользователя
+- Как к нему обращаться
+- Местоимения
+- Часовой пояс
+- Контекст (проекты, предпочтения)
 
-**Purpose:** The more the agent knows, the better it can help.
+**Цель:** Чем больше знает агент, тем лучше может помочь.
 
-### AGENTS.md - Agent Instructions
-Defines how the agent works and handles memory.
+### AGENTS.md - Инструкции агента
+Определяет как агент работает и управляет памятью.
 
-**Contents:**
-- Session startup routine (what files to read)
-- Memory management (daily vs long-term)
-- Safety rules
-- External vs internal actions
+**Содержимое:**
+- Рутина запуска сессии (какие файлы читать)
+- Управление памятью (ежедневные vs долговременная)
+- Правила безопасности
+- Внешние vs внутренние действия
 
-**Key rule:** "Text > Brain" — write things down, don't rely on mental notes.
+**Ключевое правило:** "Текст > Мозг" — записывайте вещи, не полагайтесь на мысленные заметки.
 
-### NOTES.md - Local Context
-Contains environment-specific information not in code.
+### NOTES.md - Локальный контекст
+Содержит информацию специфичную для окружения, которой нет в коде.
 
-**Examples:**
-- Camera names and locations
-- SSH hosts and aliases
-- TTS voice preferences
-- Device nicknames
+**Примеры:**
+- Имена камер и расположения
+- SSH хосты и алиасы
+- Настройки голоса TTS
+- Никнеймы устройств
 
-**Purpose:** Keeps local context separate from skill documentation.
+**Цель:** Хранит локальный контекст отдельно от документации навыков.
 
-## Memory System
+## Система памяти
 
-### Daily Logs: `memory/YYYY-MM-DD.md`
-- Raw logs of events and conversations
-- Created automatically
-- Used for recent context (today + yesterday)
-- Location: `memory/` directory in workspace
+### Ежедневные логи: `memory/YYYY-MM-DD.md`
+- Сырые, нефильтрованные логи происходящего каждый день
+- Создаются автоматически
+- Используются для недавнего контекста (сегодня + вчера)
+- Расположение: `memory/` директория в workspace
 
-### Long-term Memory: `memory/memory.md`
-- Curated memories and decisions
-- Only loaded in **main session** (direct chat)
-- NOT loaded in groups or shared contexts
-- Updated periodically from daily logs
+### Долговременная память: `memory/memory.md`
+- Отфильтрованные воспоминания и решения
+- Загружается **только в основной сессии** (прямой чат)
+- НЕ загружается в группах или общих контекстах
+- Периодически обновляется из ежедневных логов
 
-## Session Types
+## Типы сессий
 
-### Main Session
-- Direct chat with the human
-- **Loads:** SOUL.md, USER.md, NOTES.md, MEMORY.md, daily logs
-- Can read/write to all memory files
+### Основная сессия
+- Прямой чат с человеком
+- **Загружает:** SOUL.md, USER.md, NOTES.md, MEMORY.md, ежедневные логи
+- Может читать/писать все файлы памяти
 
-### Other Sessions
-- Group chats, shared contexts
-- **Loads:** SOUL.md, USER.md, NOTES.md, daily logs
-- **Does NOT load MEMORY.md** (security)
+### Другие сессии
+- Групповые чаты, общие контексты
+- **Загружает:** SOUL.md, USER.md, NOTES.md, ежедневные логи
+- **НЕ загружает MEMORY.md** (безопасность)
 
-## Configuration
+## Конфигурация
 
-### Disable Bootstrap
+### Отключить загрузку bootstrap
 ```yaml
 agents:
   defaults:
     skip_bootstrap: true
 ```
-Useful for pre-seeded workspaces.
+Полезно для предварительно созданных workspace.
 
-### File Size Limits
+### Лимиты размера файлов
 ```yaml
 agents:
   defaults:
     bootstrap_max_chars: 20000
 ```
-Files larger than this are truncated.
+Файлы больше этого размера обрезаются.
 
-### Custom Workspace Path
+### Путь к workspace
 ```bash
-# Default
+# По умолчанию
 export NEXFLOW_WORKSPACE=""
 
-# Custom
+# Кастомный
 export NEXFLOW_WORKSPACE="/path/to/workspace"
 
-# Or in config
+# Или в конфиге
 agents:
   defaults:
     workspace: "${NEXFLOW_WORKSPACE:~/nexflow}"
 ```
 
-## Initial Setup
+## Начальная настройка
 
-Run the setup wizard:
+Запустите мастера настройки:
 ```bash
 nexflow setup
 ```
 
-This creates a workspace with templates and guides you through initial configuration.
+Это создаст workspace с шаблонами и проведёт вас через начальную конфигурацию.
 
-**Setup questions:**
-1. Workspace path (or use default `~/nexflow`)
-2. User's name
-3. What to call the user
-4. Timezone
-5. Agent's name
-6. Agent's emoji
+**Вопросы мастера настройки:**
+1. Путь к workspace (или использовать дефолтный `~/nexflow`)
+2. Имя пользователя
+3. Как к нему обращаться
+4. Часовой пояс
+5. Имя агента
+6. Эмодзи агента
 
-The wizard will:
-- Create workspace directory structure
-- Generate bootstrap files from templates
-- Create `memory/` directory
-- Initialize empty `memory/memory.md`
-- Create `NOTES.md` ready for your local notes
+Мастер настроек:
+- Создаст структуру директорий workspace
+- Сгенерирует bootstrap файлы из шаблонов
+- Создаст директорию `memory/`
+- Инициализирует пустой `memory/memory.md`
+- Создаст пустой `NOTES.md` готовый к вашим локальным заметкам
