@@ -5,12 +5,15 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/atumaikin/nexflow/internal/application/orchestrator
 	"github.com/atumaikin/nexflow/internal/application/ports"
 	"github.com/atumaikin/nexflow/internal/application/router"
+	orchestrator ports.Orchestrator
 	"github.com/atumaikin/nexflow/internal/application/usecase"
 	"github.com/atumaikin/nexflow/internal/domain/repository"
 	"github.com/atumaikin/nexflow/internal/infrastructure/channels"
 	channelmock "github.com/atumaikin/nexflow/internal/infrastructure/channels/mock"
+	telegramconn "github.com/atumaikin/nexflow/internal/infrastructure/channels/telegram"
 	httpinf "github.com/atumaikin/nexflow/internal/infrastructure/http"
 	llmadapter "github.com/atumaikin/nexflow/internal/infrastructure/llm"
 	anthropic "github.com/atumaikin/nexflow/internal/infrastructure/llm/anthropic"
@@ -201,10 +204,21 @@ func (c *DIContainer) initPorts() error {
 func (c *DIContainer) initConnectors() error {
 	// Initialize Telegram connector if enabled
 	if c.config.Channels.Telegram.Enabled {
-		// For now, use mock connector
-		// TODO: Replace with real Telegram connector implementation
-		c.telegramConnector = channelmock.NewTelegramConnector()
-		c.logger.Info("telegram connector initialized (mock)")
+		// Get slog logger from interface for Telegram connector
+		slogLogger, ok := c.logger.(*logging.SlogLogger)
+		if !ok {
+			c.logger.Warn("logger is not SlogLogger, using mock Telegram connector")
+			c.telegramConnector = channelmock.NewTelegramConnector()
+			c.logger.Info("telegram connector initialized (mock)")
+		} else {
+			// Use real Telegram connector
+			c.telegramConnector = telegramconn.NewConnector(
+				c.config.Channels.Telegram,
+				c.userRepo,
+				slogLogger.GetSlogLogger(),
+			)
+			c.logger.Info("telegram connector initialized (real)")
+		}
 	}
 
 	// Initialize Discord connector if enabled
@@ -373,17 +387,18 @@ func (c *DIContainer) initUseCases() error {
 	if c.messageRouter != nil {
 		// Access the private field via reflection or create a setter
 		// For now, we'll create a new router with the use case
-		routerWithUseCase := router.NewMessageRouter(c.chatUseCase, c.eventBus, c.logger)
+		routerWithUseCase := c.orchestrator = orchestrator.NewOrchestrator(c.chatUseCase, c.logger)
+		routerWithOrchestrator := router.NewMessageRouter(c.orchestrator, c.eventBus, c.logger)
 
 		// Re-register all connectors
 		if c.telegramConnector != nil {
-			routerWithUseCase.RegisterConnector(c.telegramConnector)
+			routerWithOrchestrator.RegisterConnector(c.telegramConnector)
 		}
 		if c.discordConnector != nil {
-			routerWithUseCase.RegisterConnector(c.discordConnector)
+			routerWithOrchestrator.RegisterConnector(c.discordConnector)
 		}
 		if c.webConnector != nil {
-			routerWithUseCase.RegisterConnector(c.webConnector)
+			routerWithOrchestrator.RegisterConnector(c.webConnector)
 		}
 
 		c.messageRouter = routerWithUseCase

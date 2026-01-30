@@ -11,6 +11,7 @@ require (
 
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
+	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1 // indirect
 	github.com/kr/pretty v0.3.0 // indirect
 	github.com/lib/pq v1.11.1 // indirect
 	github.com/mattn/go-sqlite3 v1.14.33 // indirect
