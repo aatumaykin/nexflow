@@ -7,16 +7,17 @@ import (
 
 	"github.com/atumaikin/nexflow/internal/application/dto"
 	"github.com/atumaikin/nexflow/internal/application/usecase"
+	"github.com/atumaikin/nexflow/internal/shared/logging"
 )
 
 // SkillHandler handles skill-related HTTP requests
 type SkillHandler struct {
 	skillUseCase *usecase.SkillUseCase
-	logger       Logger
+	logger       logging.Logger
 }
 
 // NewSkillHandler creates a new SkillHandler
-func NewSkillHandler(skillUseCase *usecase.SkillUseCase, logger Logger) *SkillHandler {
+func NewSkillHandler(skillUseCase *usecase.SkillUseCase, logger logging.Logger) *SkillHandler {
 	return &SkillHandler{
 		skillUseCase: skillUseCase,
 		logger:       logger,

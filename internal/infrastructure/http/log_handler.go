@@ -6,15 +6,16 @@ import (
 	"net/http"
 
 	"github.com/atumaikin/nexflow/internal/application/dto"
+	"github.com/atumaikin/nexflow/internal/shared/logging"
 )
 
 // LogHandler handles log-related HTTP requests
 type LogHandler struct {
-	logger Logger
+	logger logging.Logger
 }
 
 // NewLogHandler creates a new LogHandler
-func NewLogHandler(logger Logger) *LogHandler {
+func NewLogHandler(logger logging.Logger) *LogHandler {
 	return &LogHandler{
 		logger: logger,
 	}

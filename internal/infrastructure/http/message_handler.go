@@ -7,16 +7,17 @@ import (
 
 	"github.com/atumaikin/nexflow/internal/application/dto"
 	"github.com/atumaikin/nexflow/internal/application/usecase"
+	"github.com/atumaikin/nexflow/internal/shared/logging"
 )
 
 // MessageHandler handles message-related HTTP requests
 type MessageHandler struct {
 	chatUseCase *usecase.ChatUseCase
-	logger      Logger
+	logger      logging.Logger
 }
 
 // NewMessageHandler creates a new MessageHandler
-func NewMessageHandler(chatUseCase *usecase.ChatUseCase, logger Logger) *MessageHandler {
+func NewMessageHandler(chatUseCase *usecase.ChatUseCase, logger logging.Logger) *MessageHandler {
 	return &MessageHandler{
 		chatUseCase: chatUseCase,
 		logger:      logger,

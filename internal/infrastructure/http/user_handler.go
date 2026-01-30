@@ -7,16 +7,17 @@ import (
 
 	"github.com/atumaikin/nexflow/internal/application/dto"
 	"github.com/atumaikin/nexflow/internal/application/usecase"
+	"github.com/atumaikin/nexflow/internal/shared/logging"
 )
 
 // UserHandler handles user-related HTTP requests
 type UserHandler struct {
 	userUseCase *usecase.UserUseCase
-	logger      Logger
+	logger      logging.Logger
 }
 
 // NewUserHandler creates a new UserHandler
-func NewUserHandler(userUseCase *usecase.UserUseCase, logger Logger) *UserHandler {
+func NewUserHandler(userUseCase *usecase.UserUseCase, logger logging.Logger) *UserHandler {
 	return &UserHandler{
 		userUseCase: userUseCase,
 		logger:      logger,
@@ -133,11 +134,4 @@ func RegisterUserRoutes(r *Router, handler *UserHandler) {
 	r.HandleFunc("GET /users/{id}", handler.GetUserByID)
 	r.HandleFunc("GET /users/channel/{channel}/{channelID}", handler.GetUserByChannel)
 	r.HandleFunc("DELETE /users/{id}", handler.DeleteUser)
-}
-
-// Logger interface for structured logging
-type Logger interface {
-	Error(msg string, args ...interface{})
-	Info(msg string, args ...interface{})
-	Warn(msg string, args ...interface{})
 }

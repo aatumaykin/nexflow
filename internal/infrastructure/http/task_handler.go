@@ -7,16 +7,17 @@ import (
 
 	"github.com/atumaikin/nexflow/internal/application/dto"
 	"github.com/atumaikin/nexflow/internal/application/usecase"
+	"github.com/atumaikin/nexflow/internal/shared/logging"
 )
 
 // TaskHandler handles task-related HTTP requests
 type TaskHandler struct {
 	chatUseCase *usecase.ChatUseCase
-	logger      Logger
+	logger      logging.Logger
 }
 
 // NewTaskHandler creates a new TaskHandler
-func NewTaskHandler(chatUseCase *usecase.ChatUseCase, logger Logger) *TaskHandler {
+func NewTaskHandler(chatUseCase *usecase.ChatUseCase, logger logging.Logger) *TaskHandler {
 	return &TaskHandler{
 		chatUseCase: chatUseCase,
 		logger:      logger,

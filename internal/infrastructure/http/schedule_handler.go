@@ -7,16 +7,17 @@ import (
 
 	"github.com/atumaikin/nexflow/internal/application/dto"
 	"github.com/atumaikin/nexflow/internal/application/usecase"
+	"github.com/atumaikin/nexflow/internal/shared/logging"
 )
 
 // ScheduleHandler handles schedule-related HTTP requests
 type ScheduleHandler struct {
 	scheduleUseCase *usecase.ScheduleUseCase
-	logger          Logger
+	logger          logging.Logger
 }
 
 // NewScheduleHandler creates a new ScheduleHandler
-func NewScheduleHandler(scheduleUseCase *usecase.ScheduleUseCase, logger Logger) *ScheduleHandler {
+func NewScheduleHandler(scheduleUseCase *usecase.ScheduleUseCase, logger logging.Logger) *ScheduleHandler {
 	return &ScheduleHandler{
 		scheduleUseCase: scheduleUseCase,
 		logger:          logger,

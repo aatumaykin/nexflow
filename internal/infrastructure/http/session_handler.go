@@ -7,16 +7,17 @@ import (
 
 	"github.com/atumaikin/nexflow/internal/application/dto"
 	"github.com/atumaikin/nexflow/internal/application/usecase"
+	"github.com/atumaikin/nexflow/internal/shared/logging"
 )
 
 // SessionHandler handles session-related HTTP requests
 type SessionHandler struct {
 	chatUseCase *usecase.ChatUseCase
-	logger      Logger
+	logger      logging.Logger
 }
 
 // NewSessionHandler creates a new SessionHandler
-func NewSessionHandler(chatUseCase *usecase.ChatUseCase, logger Logger) *SessionHandler {
+func NewSessionHandler(chatUseCase *usecase.ChatUseCase, logger logging.Logger) *SessionHandler {
 	return &SessionHandler{
 		chatUseCase: chatUseCase,
 		logger:      logger,
