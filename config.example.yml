@@ -73,7 +73,9 @@ channels:
   telegram:
     enabled: false
     bot_token: "${TELEGRAM_BOT_TOKEN}"
-    allowed_users: []
+    allowed_users: []      # List of allowed Telegram user IDs (for security)
+    allowed_chats: []      # List of allowed Telegram chat IDs (for security)
+    webhook_url: ""        # Optional: use webhook instead of long polling
 
   # Discord Bot Configuration
   discord:
