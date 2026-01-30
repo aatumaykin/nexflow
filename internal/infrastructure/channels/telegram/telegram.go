@@ -230,6 +230,13 @@ func (c *Connector) processUpdates(ctx context.Context) {
 				return
 			}
 
+			// Handle callback queries (inline buttons)
+			if update.CallbackQuery != nil {
+				c.handleCallbackQuery(update.CallbackQuery)
+				continue
+			}
+
+			// Handle regular messages
 			if update.Message == nil {
 				continue
 			}
@@ -245,41 +252,279 @@ func (c *Connector) processUpdates(ctx context.Context) {
 				continue
 			}
 
-			c.handleMessage(update.Message)
+			c.handleMessage(ctx, update.Message)
 		}
 	}
 }
 
 // handleMessage processes an incoming message from Telegram
-func (c *Connector) handleMessage(message *tgbotapi.Message) {
+func (c *Connector) handleMessage(ctx context.Context, message *tgbotapi.Message) {
+	// Ensure user exists in the system
+	channelUserID := fmt.Sprintf("%d", message.From.ID)
+	user, err := c.GetUser(ctx, channelUserID)
+	if err != nil {
+		// User doesn't exist, create it
+		if c.logger != nil {
+			c.logger.Debug("User not found, creating new user", "channel_user_id", channelUserID)
+		}
+		user, err = c.CreateUser(ctx, channelUserID)
+		if err != nil {
+			if c.logger != nil {
+				c.logger.Error("Failed to create user", "error", err)
+			}
+			return
+		}
+	}
+
+	// Extract message content and metadata
+	content, metadata := c.extractMessageContent(message)
+
 	// Create message struct
 	msg := &channels.Message{
 		UserID:    formatUserID(message.From.ID, message.Chat.ID),
 		ChannelID: formatChatID(message.Chat.ID),
-		Content:   message.Text,
-		Metadata: map[string]interface{}{
-			"chat_id":    message.Chat.ID,
-			"user_id":    message.From.ID,
-			"username":   message.From.UserName,
-			"first_name": message.From.FirstName,
-			"last_name":  message.From.LastName,
-			"message_id": message.MessageID,
-			"is_command": message.IsCommand(),
-			"chat_type":  message.Chat.Type,
-		},
+		Content:   content,
+		Metadata:  metadata,
+	}
+
+	// Add user ID to metadata
+	if user != nil {
+		msg.Metadata["user_internal_id"] = user.ID.String()
 	}
 
 	// Send message to incoming channel
 	select {
 	case c.incoming <- msg:
 		if c.logger != nil {
-			c.logger.Debug("Message received", "user_id", msg.UserID, "content", msg.Content)
+			c.logger.Debug("Message received",
+				"user_id", msg.UserID,
+				"type", msg.Metadata["message_type"],
+				"content_length", len(msg.Content),
+			)
 		}
 	default:
 		if c.logger != nil {
 			c.logger.Warn("Incoming channel is full, message dropped")
 		}
 	}
+}
+
+// handleCallbackQuery processes callback queries from inline buttons
+func (c *Connector) handleCallbackQuery(callback *tgbotapi.CallbackQuery) {
+	// Create message struct from callback query
+	msg := &channels.Message{
+		UserID:    formatUserID(callback.From.ID, callback.Message.Chat.ID),
+		ChannelID: formatChatID(callback.Message.Chat.ID),
+		Content:   callback.Data,
+		Metadata: map[string]interface{}{
+			"chat_id":        callback.Message.Chat.ID,
+			"user_id":        callback.From.ID,
+			"username":       callback.From.UserName,
+			"first_name":     callback.From.FirstName,
+			"last_name":      callback.From.LastName,
+			"message_id":     callback.Message.MessageID,
+			"callback_id":    callback.ID,
+			"message_type":   "callback_query",
+			"chat_type":      callback.Message.Chat.Type,
+			"inline_message": callback.InlineMessageID != "",
+		},
+	}
+
+	// Answer the callback query to remove loading state
+	if c.bot != nil {
+		callbackCfg := tgbotapi.NewCallback(callback.ID, "")
+		c.bot.Request(callbackCfg)
+	}
+
+	// Send message to incoming channel
+	select {
+	case c.incoming <- msg:
+		if c.logger != nil {
+			c.logger.Debug("Callback query received",
+				"user_id", msg.UserID,
+				"callback_data", callback.Data,
+			)
+		}
+	default:
+		if c.logger != nil {
+			c.logger.Warn("Incoming channel is full, callback dropped")
+		}
+	}
+}
+
+// extractMessageContent extracts content and metadata from a Telegram message
+func (c *Connector) extractMessageContent(message *tgbotapi.Message) (string, map[string]interface{}) {
+	metadata := map[string]interface{}{
+		"chat_id":    message.Chat.ID,
+		"user_id":    message.From.ID,
+		"username":   message.From.UserName,
+		"first_name": message.From.FirstName,
+		"last_name":  message.From.LastName,
+		"message_id": message.MessageID,
+		"chat_type":  message.Chat.Type,
+	}
+
+	var content string
+
+	// Handle different message types
+	if message.IsCommand() {
+		// Command message (/start, /help, etc.)
+		content = message.Text
+		metadata["message_type"] = "command"
+		metadata["command"] = message.Command()
+		metadata["command_args"] = message.CommandArguments()
+	} else if message.Text != "" {
+		// Text message
+		content = message.Text
+		metadata["message_type"] = "text"
+	} else if message.Photo != nil && len(message.Photo) > 0 {
+		// Photo message
+		photo := message.Photo[len(message.Photo)-1] // Get highest resolution photo
+		content = fmt.Sprintf("[Photo] FileID: %s, Width: %d, Height: %d",
+			photo.FileID, photo.Width, photo.Height)
+		metadata["message_type"] = "photo"
+		metadata["photo_file_id"] = photo.FileID
+		metadata["photo_width"] = photo.Width
+		metadata["photo_height"] = photo.Height
+		metadata["photo_file_size"] = photo.FileSize
+		if message.Caption != "" {
+			content = fmt.Sprintf("%s\nCaption: %s", content, message.Caption)
+			metadata["caption"] = message.Caption
+		}
+	} else if message.Document != nil {
+		// Document message
+		content = fmt.Sprintf("[Document] FileID: %s, FileName: %s, FileSize: %d",
+			message.Document.FileID, message.Document.FileName, message.Document.FileSize)
+		metadata["message_type"] = "document"
+		metadata["document_file_id"] = message.Document.FileID
+		metadata["document_file_name"] = message.Document.FileName
+		metadata["document_file_size"] = message.Document.FileSize
+		metadata["document_mime_type"] = message.Document.MimeType
+		if message.Caption != "" {
+			content = fmt.Sprintf("%s\nCaption: %s", content, message.Caption)
+			metadata["caption"] = message.Caption
+		}
+	} else if message.Audio != nil {
+		// Audio message
+		duration := 0
+		if message.Audio.Duration != 0 {
+			duration = message.Audio.Duration
+		}
+		content = fmt.Sprintf("[Audio] FileID: %s, Duration: %ds", message.Audio.FileID, duration)
+		metadata["message_type"] = "audio"
+		metadata["audio_file_id"] = message.Audio.FileID
+		metadata["audio_duration"] = duration
+		metadata["audio_file_size"] = message.Audio.FileSize
+		metadata["audio_mime_type"] = message.Audio.MimeType
+		if message.Audio.Performer != "" {
+			metadata["audio_performer"] = message.Audio.Performer
+		}
+		if message.Audio.Title != "" {
+			metadata["audio_title"] = message.Audio.Title
+		}
+	} else if message.Voice != nil {
+		// Voice message
+		duration := 0
+		if message.Voice.Duration != 0 {
+			duration = message.Voice.Duration
+		}
+		content = fmt.Sprintf("[Voice] FileID: %s, Duration: %ds", message.Voice.FileID, duration)
+		metadata["message_type"] = "voice"
+		metadata["voice_file_id"] = message.Voice.FileID
+		metadata["voice_duration"] = duration
+		metadata["voice_file_size"] = message.Voice.FileSize
+	} else if message.Video != nil {
+		// Video message
+		duration := 0
+		if message.Video.Duration != 0 {
+			duration = message.Video.Duration
+		}
+		content = fmt.Sprintf("[Video] FileID: %s, Width: %d, Height: %d, Duration: %ds",
+			message.Video.FileID, message.Video.Width, message.Video.Height, duration)
+		metadata["message_type"] = "video"
+		metadata["video_file_id"] = message.Video.FileID
+		metadata["video_width"] = message.Video.Width
+		metadata["video_height"] = message.Video.Height
+		metadata["video_duration"] = duration
+		metadata["video_file_size"] = message.Video.FileSize
+		metadata["video_mime_type"] = message.Video.MimeType
+		if message.Caption != "" {
+			content = fmt.Sprintf("%s\nCaption: %s", content, message.Caption)
+			metadata["caption"] = message.Caption
+		}
+	} else if message.VideoNote != nil {
+		// Video note (round video message)
+		duration := 0
+		if message.VideoNote.Duration != 0 {
+			duration = message.VideoNote.Duration
+		}
+		content = fmt.Sprintf("[VideoNote] FileID: %s, Duration: %ds, Length: %d",
+			message.VideoNote.FileID, duration, message.VideoNote.Length)
+		metadata["message_type"] = "video_note"
+		metadata["video_note_file_id"] = message.VideoNote.FileID
+		metadata["video_note_duration"] = duration
+		metadata["video_note_length"] = message.VideoNote.Length
+		metadata["video_note_file_size"] = message.VideoNote.FileSize
+	} else if message.Sticker != nil {
+		// Sticker message
+		content = fmt.Sprintf("[Sticker] FileID: %s, Emoji: %s",
+			message.Sticker.FileID, message.Sticker.Emoji)
+		metadata["message_type"] = "sticker"
+		metadata["sticker_file_id"] = message.Sticker.FileID
+		metadata["sticker_emoji"] = message.Sticker.Emoji
+		metadata["sticker_set_name"] = message.Sticker.SetName
+		metadata["sticker_width"] = message.Sticker.Width
+		metadata["sticker_height"] = message.Sticker.Height
+		metadata["sticker_is_animated"] = message.Sticker.IsAnimated
+	} else if message.Location != nil {
+		// Location message
+		content = fmt.Sprintf("[Location] Latitude: %.6f, Longitude: %.6f",
+			message.Location.Latitude, message.Location.Longitude)
+		metadata["message_type"] = "location"
+		metadata["location_latitude"] = message.Location.Latitude
+		metadata["location_longitude"] = message.Location.Longitude
+	} else if message.Contact != nil {
+		// Contact message
+		content = fmt.Sprintf("[Contact] Phone: %s, Name: %s",
+			message.Contact.PhoneNumber, message.Contact.FirstName)
+		metadata["message_type"] = "contact"
+		metadata["contact_phone_number"] = message.Contact.PhoneNumber
+		metadata["contact_first_name"] = message.Contact.FirstName
+		metadata["contact_last_name"] = message.Contact.LastName
+		metadata["contact_user_id"] = message.Contact.UserID
+	} else {
+		// Unknown message type
+		content = "[Unsupported message type]"
+		metadata["message_type"] = "unknown"
+	}
+
+	// Add reply to information if exists
+	if message.ReplyToMessage != nil {
+		metadata["reply_to_message_id"] = message.ReplyToMessage.MessageID
+		if message.ReplyToMessage.From != nil {
+			metadata["reply_to_user_id"] = message.ReplyToMessage.From.ID
+			metadata["reply_to_username"] = message.ReplyToMessage.From.UserName
+		}
+		if message.ReplyToMessage.Text != "" {
+			metadata["reply_to_text"] = message.ReplyToMessage.Text
+		}
+	}
+
+	// Add forward information if exists
+	if message.ForwardFrom != nil {
+		metadata["forward_from_user_id"] = message.ForwardFrom.ID
+		metadata["forward_from_username"] = message.ForwardFrom.UserName
+	}
+	if message.ForwardDate != 0 {
+		metadata["forward_date"] = message.ForwardDate
+	}
+
+	// Add edit information if edited
+	if message.EditDate != 0 {
+		metadata["edit_date"] = message.EditDate
+	}
+
+	return content, metadata
 }
 
 // isAllowed checks if the user or chat is allowed to interact with the bot

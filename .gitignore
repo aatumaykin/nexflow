@@ -26,6 +26,10 @@ go.work
 .env.local
 .env.*.local
 
+# Test configs
+config_test*.yml
+config_test*.yaml
+
 # IDE
 .vscode/
 .idea/
@@ -43,6 +47,7 @@ logs/
 tmp/
 temp/
 *.tmp
+*.bak
 
 # Database
 *.db
