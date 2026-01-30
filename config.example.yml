@@ -14,7 +14,7 @@ database:
 
 # LLM Providers Configuration
 llm:
-  # Default provider to use: openai, anthropic, or ollama
+  # Default provider to use: openai, anthropic, ollama, or zai
   default_provider: "openai"
 
   # Provider-specific configurations
@@ -43,6 +43,19 @@ llm:
       base_url: "http://localhost:11434"
       # Model to use
       model: "llama2"
+
+    # z.ai Configuration
+    zai:
+      # API Key (use environment variable for security)
+      api_key: "${ZAI_API_KEY}"
+      # Base URL (optional, defaults to https://api.z.ai/api/paas/v4)
+      base_url: "https://api.z.ai/api/paas/v4"
+      # Model to use (e.g., glm-4, glm-4.7)
+      model: "glm-4"
+      # Temperature for generation (0.0 - 2.0, optional)
+      temperature: 0.7
+      # Maximum tokens to generate (optional)
+      max_tokens: 2000
 
 # Skills Runtime Configuration
 skills:
