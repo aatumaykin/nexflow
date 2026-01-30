@@ -38,8 +38,10 @@ llm:
 
 channels:
   telegram:
+    enabled: false
     bot_token: "${TELEGRAM_BOT_TOKEN}"
     allowed_users: []
+    allowed_chats: []
   web:
     enabled: true
 

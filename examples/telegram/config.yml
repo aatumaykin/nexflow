@@ -1,0 +1,39 @@
+server:
+  host: "127.0.0.1"
+  port: 8080
+
+database:
+  type: "sqlite"
+  path: "./data/nexflow.db"
+  migrations_path: "./migrations"
+  max_open_conns: 25
+  max_idle_conns: 25
+  conn_max_lifetime: 5m
+
+llm:
+  default_provider: "openai"
+  providers:
+    anthropic:
+      api_key: "${ANTHROPIC_API_KEY}"
+      model: "claude-opus-4"
+    openai:
+      api_key: "${OPENAI_API_KEY}"
+      model: "gpt-4"
+
+channels:
+  telegram:
+    enabled: true
+    bot_token: "${TELEGRAM_BOT_TOKEN}"
+    allowed_users: ["123456789", "987654321"]  # Replace with your Telegram user IDs
+    allowed_chats: []
+  web:
+    enabled: true
+
+skills:
+  directory: "./skills"
+  timeout_sec: 30
+  sandbox_enabled: true
+
+logging:
+  level: "info"
+  format: "json"
