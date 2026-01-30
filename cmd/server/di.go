@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/atumaikin/nexflow/internal/application/ports"
 	"github.com/atumaikin/nexflow/internal/application/usecase"
@@ -13,11 +14,13 @@ import (
 	llmmock "github.com/atumaikin/nexflow/internal/infrastructure/llm/mock"
 	ollama "github.com/atumaikin/nexflow/internal/infrastructure/llm/ollama"
 	openai "github.com/atumaikin/nexflow/internal/infrastructure/llm/openai"
+	"github.com/atumaikin/nexflow/internal/infrastructure/llm/zai"
 	"github.com/atumaikin/nexflow/internal/infrastructure/persistence/database"
 	"github.com/atumaikin/nexflow/internal/infrastructure/persistence/database/sqlite"
 	"github.com/atumaikin/nexflow/internal/infrastructure/skills"
 	skillmock "github.com/atumaikin/nexflow/internal/infrastructure/skills/mock"
 	"github.com/atumaikin/nexflow/internal/shared/config"
+	"github.com/atumaikin/nexflow/internal/shared/eventbus"
 	"github.com/atumaikin/nexflow/internal/shared/logging"
 )
 
@@ -28,6 +31,9 @@ type DIContainer struct {
 	db      database.Database
 	sqlDB   *sql.DB
 	queries *database.Queries
+
+	// Event Bus
+	eventBus *eventbus.EventBus
 
 	// Repositories
 	userRepo     repository.UserRepository
@@ -75,6 +81,11 @@ func NewDIContainer(cfg *config.Config, logger logging.Logger, db database.Datab
 		queries: database.New(sqlDB),
 	}
 
+	// Initialize Event Bus
+	if err := container.initEventBus(); err != nil {
+		return nil, err
+	}
+
 	// Initialize repositories
 	if err := container.initRepositories(); err != nil {
 		return nil, err
@@ -119,6 +130,33 @@ func (c *DIContainer) initRepositories() error {
 	c.scheduleRepo = sqlite.NewScheduleRepository(c.queries)
 
 	c.logger.Info("repositories initialized successfully")
+	return nil
+}
+
+// initEventBus initializes the event bus
+func (c *DIContainer) initEventBus() error {
+	// Check if event bus is enabled in configuration
+	if !c.config.EventBus.Enabled {
+		c.logger.Info("event bus disabled in configuration")
+		return nil
+	}
+
+	// Create event bus configuration from application config
+	ebConfig := &eventbus.EventBusConfig{
+		BatchSize:     c.config.EventBus.BatchSize,
+		FlushInterval: time.Duration(c.config.EventBus.FlushIntervalMs) * time.Millisecond,
+		Logger:        c.logger,
+	}
+
+	// Create event bus
+	c.eventBus = eventbus.NewEventBus(ebConfig)
+
+	// Start event bus
+	if err := c.eventBus.Start(); err != nil {
+		return fmt.Errorf("failed to start event bus: %w", err)
+	}
+
+	c.logger.Info("event bus initialized successfully")
 	return nil
 }
 
@@ -181,6 +219,12 @@ func (c *DIContainer) initLLMProvider() error {
 		}, slogLogger.GetSlogLogger())
 	case "ollama":
 		provider, err = ollama.NewProvider(&ollama.Config{
+			BaseURL: providerConfig.BaseURL,
+			Model:   providerConfig.Model,
+		}, slogLogger.GetSlogLogger())
+	case "zai":
+		provider, err = zai.NewProvider(&zai.Config{
+			APIKey:  providerConfig.APIKey,
 			BaseURL: providerConfig.BaseURL,
 			Model:   providerConfig.Model,
 		}, slogLogger.GetSlogLogger())
@@ -252,6 +296,7 @@ func (c *DIContainer) initUseCases() error {
 		c.taskRepo,
 		c.llmProvider,
 		c.skillRuntime,
+		c.eventBus,
 		c.logger,
 	)
 
@@ -322,6 +367,11 @@ func (c *DIContainer) ScheduleUseCase() *usecase.ScheduleUseCase {
 	return c.scheduleUseCase
 }
 
+// EventBus returns the event bus instance
+func (c *DIContainer) EventBus() *eventbus.EventBus {
+	return c.eventBus
+}
+
 // Getters for HTTP handlers
 func (c *DIContainer) UserHandler() *httpinf.UserHandler {
 	return c.userHandler
@@ -354,6 +404,14 @@ func (c *DIContainer) LogHandler() *httpinf.LogHandler {
 // Shutdown performs cleanup operations
 func (c *DIContainer) Shutdown() error {
 	c.logger.Info("shutting down DI container")
+
+	// Stop event bus if it was enabled and initialized
+	if c.config.EventBus.Enabled && c.eventBus != nil {
+		if err := c.eventBus.Stop(); err != nil {
+			c.logger.Error("failed to stop event bus", "error", err)
+		}
+	}
+
 	// Database is closed in main
 	return nil
 }
