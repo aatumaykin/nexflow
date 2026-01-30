@@ -6,11 +6,11 @@ import (
 	"testing"
 
 	"github.com/atumaikin/nexflow/internal/domain/entity"
+	"github.com/atumaikin/nexflow/internal/infrastructure/persistence/database"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// schemaSQL contains the database schema for testing
 var schemaSQL = `
 CREATE TABLE users (
     id TEXT PRIMARY KEY,
@@ -80,18 +80,15 @@ CREATE TABLE logs (
 );
 `
 
-// setupTestDB creates an in-memory SQLite database for testing
 func setupTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 
 	db, err := sql.Open("sqlite3", ":memory:")
 	require.NoError(t, err)
 
-	// Enable foreign keys
 	_, err = db.Exec("PRAGMA foreign_keys = ON")
 	require.NoError(t, err)
 
-	// Create schema
 	_, err = db.Exec(schemaSQL)
 	require.NoError(t, err)
 
@@ -103,7 +100,8 @@ func TestUserRepository_Create(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewUserRepository(db)
+	queries := database.New(db)
+	repo := NewUserRepository(queries)
 	user := entity.NewUser("telegram", "user123")
 
 	err := repo.Create(ctx, user)
@@ -116,7 +114,8 @@ func TestUserRepository_FindByID(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewUserRepository(db)
+	queries := database.New(db)
+	repo := NewUserRepository(queries)
 	user := entity.NewUser("telegram", "user123")
 
 	err := repo.Create(ctx, user)
@@ -134,7 +133,8 @@ func TestUserRepository_FindByID_NotFound(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewUserRepository(db)
+	queries := database.New(db)
+	repo := NewUserRepository(queries)
 
 	foundUser, err := repo.FindByID(ctx, "non-existent-id")
 	assert.Error(t, err)
@@ -147,7 +147,8 @@ func TestUserRepository_FindByChannel(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewUserRepository(db)
+	queries := database.New(db)
+	repo := NewUserRepository(queries)
 	user := entity.NewUser("telegram", "user123")
 
 	err := repo.Create(ctx, user)
@@ -165,7 +166,8 @@ func TestUserRepository_FindByChannel_NotFound(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewUserRepository(db)
+	queries := database.New(db)
+	repo := NewUserRepository(queries)
 
 	foundUser, err := repo.FindByChannel(ctx, "telegram", "non-existent-user")
 	assert.Error(t, err)
@@ -178,9 +180,9 @@ func TestUserRepository_List(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewUserRepository(db)
+	queries := database.New(db)
+	repo := NewUserRepository(queries)
 
-	// Create multiple users
 	user1 := entity.NewUser("telegram", "user1")
 	user2 := entity.NewUser("discord", "user2")
 	user3 := entity.NewUser("web", "user3")
@@ -199,7 +201,8 @@ func TestUserRepository_Delete(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewUserRepository(db)
+	queries := database.New(db)
+	repo := NewUserRepository(queries)
 	user := entity.NewUser("telegram", "user123")
 
 	err := repo.Create(ctx, user)
@@ -208,7 +211,6 @@ func TestUserRepository_Delete(t *testing.T) {
 	err = repo.Delete(ctx, string(user.ID))
 	require.NoError(t, err)
 
-	// Verify user is deleted
 	foundUser, err := repo.FindByID(ctx, string(user.ID))
 	assert.Error(t, err)
 	assert.Nil(t, foundUser)
@@ -219,7 +221,8 @@ func TestUserRepository_Delete_NotFound(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewUserRepository(db)
+	queries := database.New(db)
+	repo := NewUserRepository(queries)
 
 	err := repo.Delete(ctx, "non-existent-id")
 	assert.Error(t, err)
@@ -231,10 +234,11 @@ func TestUserRepository_UniqueConstraint(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewUserRepository(db)
+	queries := database.New(db)
+	repo := NewUserRepository(queries)
 
 	user1 := entity.NewUser("telegram", "user123")
-	user2 := entity.NewUser("telegram", "user123") // Same channel and channel ID
+	user2 := entity.NewUser("telegram", "user123")
 
 	err := repo.Create(ctx, user1)
 	require.NoError(t, err)
@@ -248,9 +252,9 @@ func TestUserRepository_DifferentChannels(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewUserRepository(db)
+	queries := database.New(db)
+	repo := NewUserRepository(queries)
 
-	// Same channel ID but different channels
 	user1 := entity.NewUser("telegram", "user123")
 	user2 := entity.NewUser("discord", "user123")
 

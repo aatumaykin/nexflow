@@ -23,10 +23,11 @@ import (
 
 // DIContainer holds all application dependencies
 type DIContainer struct {
-	config *config.Config
-	logger logging.Logger
-	db     database.Database
-	sqlDB  *sql.DB
+	config  *config.Config
+	logger  logging.Logger
+	db      database.Database
+	sqlDB   *sql.DB
+	queries *database.Queries
 
 	// Repositories
 	userRepo     repository.UserRepository
@@ -67,10 +68,11 @@ func NewDIContainer(cfg *config.Config, logger logging.Logger, db database.Datab
 	sqlDB := dbImpl.GetDB()
 
 	container := &DIContainer{
-		config: cfg,
-		logger: logger,
-		db:     db,
-		sqlDB:  sqlDB,
+		config:  cfg,
+		logger:  logger,
+		db:      db,
+		sqlDB:   sqlDB,
+		queries: database.New(sqlDB),
 	}
 
 	// Initialize repositories
@@ -99,22 +101,22 @@ func NewDIContainer(cfg *config.Config, logger logging.Logger, db database.Datab
 // initRepositories initializes all repository implementations
 func (c *DIContainer) initRepositories() error {
 	// User repository
-	c.userRepo = sqlite.NewUserRepository(c.sqlDB)
+	c.userRepo = sqlite.NewUserRepository(c.queries)
 
 	// Session repository
-	c.sessionRepo = sqlite.NewSessionRepository(c.sqlDB)
+	c.sessionRepo = sqlite.NewSessionRepository(c.queries)
 
 	// Message repository
-	c.messageRepo = sqlite.NewMessageRepository(c.sqlDB)
+	c.messageRepo = sqlite.NewMessageRepository(c.queries)
 
 	// Task repository
-	c.taskRepo = sqlite.NewTaskRepository(c.sqlDB)
+	c.taskRepo = sqlite.NewTaskRepository(c.queries)
 
 	// Skill repository
-	c.skillRepo = sqlite.NewSkillRepository(c.sqlDB)
+	c.skillRepo = sqlite.NewSkillRepository(c.queries)
 
 	// Schedule repository
-	c.scheduleRepo = sqlite.NewScheduleRepository(c.sqlDB)
+	c.scheduleRepo = sqlite.NewScheduleRepository(c.queries)
 
 	c.logger.Info("repositories initialized successfully")
 	return nil
