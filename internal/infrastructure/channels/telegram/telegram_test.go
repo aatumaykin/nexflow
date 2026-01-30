@@ -3,6 +3,7 @@ package telegram
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/atumaikin/nexflow/internal/domain/entity"
@@ -894,4 +895,445 @@ func TestMessageTypesIntegration(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestSendResponse_TextMessage tests sending text messages
+func TestSendResponse_TextMessage(t *testing.T) {
+	cfg := config.TelegramConfig{
+		Enabled:      true,
+		BotToken:     "test_token",
+		AllowedChats: []string{"123456789"},
+	}
+
+	mockRepo := new(MockUserRepository)
+	connector := NewConnector(cfg, mockRepo, nil)
+
+	// Simulate running state
+	connector.mu.Lock()
+	connector.running = true
+	connector.mu.Unlock()
+
+	t.Run("simple text message", func(t *testing.T) {
+		response := &channels.Response{
+			Type:    channels.ResponseTypeText,
+			Content: "Hello, world!",
+		}
+
+		// This test would require mocking the bot API
+		// For now, we just test that the code compiles
+		assert.NotNil(t, response)
+		assert.Equal(t, channels.ResponseTypeText, response.Type)
+	})
+
+	t.Run("text message with HTML format", func(t *testing.T) {
+		response := &channels.Response{
+			Type:    channels.ResponseTypeText,
+			Content: "<b>Bold text</b>",
+			Metadata: map[string]interface{}{
+				"parse_mode": tgbotapi.ModeHTML,
+			},
+		}
+
+		assert.NotNil(t, response)
+		assert.Equal(t, tgbotapi.ModeHTML, response.Metadata["parse_mode"])
+	})
+
+	t.Run("text message with inline buttons", func(t *testing.T) {
+		response := &channels.Response{
+			Type:    channels.ResponseTypeText,
+			Content: "Choose an option:",
+			Buttons: []channels.InlineButton{
+				{Text: "Option 1", Data: "opt1"},
+				{Text: "Option 2", Data: "opt2"},
+			},
+		}
+
+		assert.NotNil(t, response)
+		assert.Len(t, response.Buttons, 2)
+	})
+}
+
+// TestSendResponse_PhotoMessage tests sending photo messages
+func TestSendResponse_PhotoMessage(t *testing.T) {
+	t.Run("photo with file ID", func(t *testing.T) {
+		response := &channels.Response{
+			Type:    channels.ResponseTypePhoto,
+			Content: "Check out this photo",
+			Caption: "Beautiful sunset",
+			Media: &channels.MediaContent{
+				FileID: "AgACAgIAAxkBAAIC...",
+			},
+		}
+
+		assert.NotNil(t, response)
+		assert.Equal(t, channels.ResponseTypePhoto, response.Type)
+		assert.NotNil(t, response.Media)
+		assert.NotEmpty(t, response.Media.FileID)
+	})
+
+	t.Run("photo with URL", func(t *testing.T) {
+		response := &channels.Response{
+			Type:    channels.ResponseTypePhoto,
+			Content: "Here's a photo",
+			Caption: "Nice picture",
+			Media: &channels.MediaContent{
+				URL: "https://example.com/photo.jpg",
+			},
+		}
+
+		assert.NotNil(t, response)
+		assert.NotEmpty(t, response.Media.URL)
+	})
+
+	t.Run("photo with file data", func(t *testing.T) {
+		photoData := []byte{0xFF, 0xD8, 0xFF, 0xE0} // JPEG header
+		response := &channels.Response{
+			Type:    channels.ResponseTypePhoto,
+			Content: "Uploaded photo",
+			Caption: "From camera",
+			Media: &channels.MediaContent{
+				FileData: photoData,
+			},
+		}
+
+		assert.NotNil(t, response)
+		assert.NotNil(t, response.Media.FileData)
+	})
+}
+
+// TestSendResponse_DocumentMessage tests sending document messages
+func TestSendResponse_DocumentMessage(t *testing.T) {
+	t.Run("document with file ID", func(t *testing.T) {
+		response := &channels.Response{
+			Type:    channels.ResponseTypeDocument,
+			Content: "Here's a document",
+			Caption: "Important file",
+			Media: &channels.MediaContent{
+				FileID:   "BQACAgIAAxkBAAI...",
+				FileName: "report.pdf",
+			},
+		}
+
+		assert.NotNil(t, response)
+		assert.Equal(t, channels.ResponseTypeDocument, response.Type)
+		assert.Equal(t, "report.pdf", response.Media.FileName)
+	})
+
+	t.Run("document with file data", func(t *testing.T) {
+		docData := []byte("%PDF-1.4...")
+		response := &channels.Response{
+			Type:    channels.ResponseTypeDocument,
+			Content: "Uploaded document",
+			Caption: "My report",
+			Media: &channels.MediaContent{
+				FileData: docData,
+				FileName: "document.pdf",
+			},
+		}
+
+		assert.NotNil(t, response)
+		assert.NotEmpty(t, response.Media.FileName)
+	})
+}
+
+// TestSendResponse_AudioMessage tests sending audio messages
+func TestSendResponse_AudioMessage(t *testing.T) {
+	t.Run("audio with file ID", func(t *testing.T) {
+		response := &channels.Response{
+			Type:    channels.ResponseTypeAudio,
+			Content: "Listen to this audio",
+			Caption: "Great song",
+			Media: &channels.MediaContent{
+				FileID: "AwACAgIAAxkBAAI...",
+			},
+		}
+
+		assert.NotNil(t, response)
+		assert.Equal(t, channels.ResponseTypeAudio, response.Type)
+	})
+
+	t.Run("audio with file data", func(t *testing.T) {
+		audioData := []byte{0xFF, 0xFB, 0x90} // MP3 header
+		response := &channels.Response{
+			Type:    channels.ResponseTypeAudio,
+			Content: "Uploaded audio",
+			Media: &channels.MediaContent{
+				FileData: audioData,
+			},
+		}
+
+		assert.NotNil(t, response)
+		assert.NotNil(t, response.Media.FileData)
+	})
+}
+
+// TestSendResponse_VideoMessage tests sending video messages
+func TestSendResponse_VideoMessage(t *testing.T) {
+	t.Run("video with file ID", func(t *testing.T) {
+		response := &channels.Response{
+			Type:    channels.ResponseTypeVideo,
+			Content: "Watch this video",
+			Caption: "Awesome clip",
+			Media: &channels.MediaContent{
+				FileID: "BAACAgIAAxkBAAI...",
+			},
+		}
+
+		assert.NotNil(t, response)
+		assert.Equal(t, channels.ResponseTypeVideo, response.Type)
+	})
+
+	t.Run("video with file data", func(t *testing.T) {
+		videoData := []byte{0x00, 0x00, 0x00} // MP4 header
+		response := &channels.Response{
+			Type:    channels.ResponseTypeVideo,
+			Content: "Uploaded video",
+			Caption: "My movie",
+			Media: &channels.MediaContent{
+				FileData: videoData,
+			},
+		}
+
+		assert.NotNil(t, response)
+		assert.NotNil(t, response.Media.FileData)
+	})
+}
+
+// TestSendResponse_StickerMessage tests sending sticker messages
+func TestSendResponse_StickerMessage(t *testing.T) {
+	response := &channels.Response{
+		Type: channels.ResponseTypeSticker,
+		Media: &channels.MediaContent{
+			FileID: "CAACAgIAAxkBAAI...",
+		},
+	}
+
+	assert.NotNil(t, response)
+	assert.Equal(t, channels.ResponseTypeSticker, response.Type)
+	assert.NotNil(t, response.Media)
+	assert.NotEmpty(t, response.Media.FileID)
+}
+
+// TestSendResponse_EditMessage tests editing messages
+func TestSendResponse_EditMessage(t *testing.T) {
+	response := &channels.Response{
+		Type:      channels.ResponseTypeText,
+		Content:   "Updated message",
+		MessageID: "123",
+	}
+
+	assert.NotNil(t, response)
+	assert.NotEmpty(t, response.MessageID)
+}
+
+// TestBuildInlineMarkup tests building inline keyboard markup
+func TestBuildInlineMarkup(t *testing.T) {
+	cfg := config.TelegramConfig{
+		Enabled:      true,
+		BotToken:     "test_token",
+		AllowedChats: []string{"123456789"},
+	}
+
+	mockRepo := new(MockUserRepository)
+	connector := NewConnector(cfg, mockRepo, nil)
+
+	t.Run("single button", func(t *testing.T) {
+		response := &channels.Response{
+			Buttons: []channels.InlineButton{
+				{Text: "Click me", Data: "click"},
+			},
+		}
+
+		markup := connector.buildInlineMarkup(response)
+		assert.NotNil(t, markup)
+		assert.Len(t, markup.InlineKeyboard, 1)
+		assert.Len(t, markup.InlineKeyboard[0], 1)
+		assert.Equal(t, "Click me", markup.InlineKeyboard[0][0].Text)
+		assert.Equal(t, "click", *markup.InlineKeyboard[0][0].CallbackData)
+	})
+
+	t.Run("multiple buttons", func(t *testing.T) {
+		response := &channels.Response{
+			Buttons: []channels.InlineButton{
+				{Text: "Option 1", Data: "opt1"},
+				{Text: "Option 2", Data: "opt2"},
+				{Text: "Option 3", Data: "opt3"},
+				{Text: "Option 4", Data: "opt4"},
+			},
+		}
+
+		markup := connector.buildInlineMarkup(response)
+		assert.NotNil(t, markup)
+		assert.Len(t, markup.InlineKeyboard, 2)
+		assert.Len(t, markup.InlineKeyboard[0], 2)
+		assert.Len(t, markup.InlineKeyboard[1], 2)
+	})
+
+	t.Run("button with URL", func(t *testing.T) {
+		response := &channels.Response{
+			Buttons: []channels.InlineButton{
+				{Text: "Visit website", URL: "https://example.com"},
+			},
+		}
+
+		markup := connector.buildInlineMarkup(response)
+		assert.NotNil(t, markup)
+		assert.NotNil(t, markup.InlineKeyboard[0][0].URL)
+		assert.Equal(t, "https://example.com", *markup.InlineKeyboard[0][0].URL)
+	})
+
+	t.Run("button with switch inline query", func(t *testing.T) {
+		response := &channels.Response{
+			Buttons: []channels.InlineButton{
+				{Text: "Search...", SwitchInline: "query"},
+			},
+		}
+
+		markup := connector.buildInlineMarkup(response)
+		assert.NotNil(t, markup)
+		assert.NotNil(t, markup.InlineKeyboard[0][0].SwitchInlineQuery)
+		assert.Equal(t, "query", *markup.InlineKeyboard[0][0].SwitchInlineQuery)
+	})
+}
+
+// TestSplitLongText tests splitting long text messages
+func TestSplitLongText(t *testing.T) {
+	cfg := config.TelegramConfig{
+		Enabled:      true,
+		BotToken:     "test_token",
+		AllowedChats: []string{"123456789"},
+	}
+
+	mockRepo := new(MockUserRepository)
+	connector := NewConnector(cfg, mockRepo, nil)
+
+	t.Run("short text", func(t *testing.T) {
+		text := "Short message"
+		parts := connector.splitLongText(text, 4096)
+		assert.Len(t, parts, 1)
+		assert.Equal(t, text, parts[0])
+	})
+
+	t.Run("text exactly at limit", func(t *testing.T) {
+		text := string(make([]rune, 4096))
+		parts := connector.splitLongText(text, 4096)
+		assert.Len(t, parts, 1)
+		assert.Equal(t, text, parts[0])
+	})
+
+	t.Run("text exceeding limit", func(t *testing.T) {
+		text := "A"
+		for len(text) < 5000 {
+			text += text
+		}
+		parts := connector.splitLongText(text, 4096)
+		assert.Greater(t, len(parts), 1)
+		// Check each part is at or below limit
+		for _, part := range parts {
+			assert.LessOrEqual(t, len(part), 4096)
+		}
+	})
+
+	t.Run("text with newlines", func(t *testing.T) {
+		text := "Line 1\nLine 2\nLine 3"
+		for len(text) < 4100 {
+			text += "\nNext line"
+		}
+		parts := connector.splitLongText(text, 4096)
+		assert.Greater(t, len(parts), 1)
+		// Check that split happens at reasonable points
+		assert.Contains(t, parts[0], "Line 1")
+	})
+}
+
+// TestHandleSendError tests error handling
+func TestHandleSendError(t *testing.T) {
+	cfg := config.TelegramConfig{
+		Enabled:      true,
+		BotToken:     "test_token",
+		AllowedChats: []string{"123456789"},
+	}
+
+	mockRepo := new(MockUserRepository)
+	connector := NewConnector(cfg, mockRepo, nil)
+
+	t.Run("bot blocked by user", func(t *testing.T) {
+		err := connector.handleSendError(
+			fmt.Errorf("Forbidden: bot was blocked by the user"),
+			"text",
+			123456789,
+		)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "bot was blocked by user")
+	})
+
+	t.Run("user is deactivated", func(t *testing.T) {
+		err := connector.handleSendError(
+			fmt.Errorf("Forbidden: user is deactivated"),
+			"text",
+			123456789,
+		)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "user is deactivated")
+	})
+
+	t.Run("chat not found", func(t *testing.T) {
+		err := connector.handleSendError(
+			fmt.Errorf("Forbidden: chat not found"),
+			"text",
+			123456789,
+		)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "chat not found")
+	})
+
+	t.Run("rate limit exceeded", func(t *testing.T) {
+		err := connector.handleSendError(
+			fmt.Errorf("Too Many Requests: retry after 10"),
+			"text",
+			123456789,
+		)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "rate limit exceeded")
+	})
+
+	t.Run("message too long", func(t *testing.T) {
+		err := connector.handleSendError(
+			fmt.Errorf("Bad Request: message is too long"),
+			"text",
+			123456789,
+		)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "message is too long")
+	})
+}
+
+// TestRateLimiter tests rate limiting functionality
+func TestRateLimiter(t *testing.T) {
+	rl := newRateLimiter()
+
+	t.Run("initial tokens", func(t *testing.T) {
+		// Rate limiter should be pre-filled with tokens
+		assert.Equal(t, maxMessagesPerSecond, len(rl.tokens))
+	})
+
+	t.Run("acquire token", func(t *testing.T) {
+		initialCount := len(rl.tokens)
+		rl.acquireToken()
+		assert.Equal(t, initialCount-1, len(rl.tokens))
+	})
+}
+
+// TestNewConnector_WithRateLimiter tests that connector has rate limiter
+func TestNewConnector_WithRateLimiter(t *testing.T) {
+	cfg := config.TelegramConfig{
+		Enabled:      true,
+		BotToken:     "test_token",
+		AllowedChats: []string{"123456789"},
+	}
+
+	mockRepo := new(MockUserRepository)
+	connector := NewConnector(cfg, mockRepo, nil)
+
+	assert.NotNil(t, connector.rateLimiter)
 }

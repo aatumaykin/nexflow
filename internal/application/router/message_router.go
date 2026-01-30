@@ -6,44 +6,44 @@ import (
 	"sync"
 
 	"github.com/atumaikin/nexflow/internal/application/dto"
-	"github.com/atumaikin/nexflow/internal/application/usecase"
+	"github.com/atumaikin/nexflow/internal/application/ports"
 	"github.com/atumaikin/nexflow/internal/infrastructure/channels"
 	"github.com/atumaikin/nexflow/internal/shared/eventbus"
 	"github.com/atumaikin/nexflow/internal/shared/logging"
 )
 
-// MessageRouter routes incoming messages from connectors to ChatUseCase
+// MessageRouter routes incoming messages from connectors to Orchestrator
 // and sends responses back through appropriate connector
 type MessageRouter struct {
-	connectors  map[string]channels.Connector
-	chatUseCase *usecase.ChatUseCase
-	eventBus    *eventbus.EventBus
-	logger      logging.Logger
-	mu          sync.RWMutex
-	ctx         context.Context
-	cancel      context.CancelFunc
-	wg          sync.WaitGroup
+	connectors   map[string]channels.Connector
+	orchestrator ports.Orchestrator
+	eventBus     *eventbus.EventBus
+	logger       logging.Logger
+	mu           sync.RWMutex
+	ctx          context.Context
+	cancel       context.CancelFunc
+	wg           sync.WaitGroup
 }
 
 // NewMessageRouter creates a new MessageRouter instance
 //
 // Parameters:
-//   - chatUseCase: ChatUseCase for processing messages
+//   - orchestrator: Orchestrator for processing messages
 //   - eventBus: EventBus for publishing events
 //   - logger: Structured logger for logging
 //
 // Returns:
 //   - *MessageRouter: Initialized message router
-func NewMessageRouter(chatUseCase *usecase.ChatUseCase, eventBus *eventbus.EventBus, logger logging.Logger) *MessageRouter {
+func NewMessageRouter(orchestrator ports.Orchestrator, eventBus *eventbus.EventBus, logger logging.Logger) *MessageRouter {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &MessageRouter{
-		connectors:  make(map[string]channels.Connector),
-		chatUseCase: chatUseCase,
-		eventBus:    eventBus,
-		logger:      logger,
-		ctx:         ctx,
-		cancel:      cancel,
+		connectors:   make(map[string]channels.Connector),
+		orchestrator: orchestrator,
+		eventBus:     eventBus,
+		logger:       logger,
+		ctx:          ctx,
+		cancel:       cancel,
 	}
 }
 
@@ -193,9 +193,9 @@ func (r *MessageRouter) processMessages(connectorName string, conn channels.Conn
 func (r *MessageRouter) handleMessage(connectorName string, conn channels.Connector, msg *channels.Message) {
 	ctx := r.ctx
 
-	// Check if chatUseCase is available (nil check for testing)
-	if r.chatUseCase == nil {
-		r.logger.Warn("chat use case not available, skipping message processing", "connector", connectorName, "user_id", msg.UserID)
+	// Check if orchestrator is available (nil check for testing)
+	if r.orchestrator == nil {
+		r.logger.Warn("orchestrator not available, skipping message processing", "connector", connectorName, "user_id", msg.UserID)
 		return
 	}
 
@@ -212,20 +212,13 @@ func (r *MessageRouter) handleMessage(connectorName string, conn channels.Connec
 		}
 	}
 
-	// Create SendMessageRequest
-	req := dto.SendMessageRequest{
-		UserID: string(user.ID),
-		Message: dto.ChatMessage{
-			Role:    "user",
-			Content: msg.Content,
-		},
-		Options: dto.MessageOptions{
-			MaxTokens: 1000,
-		},
+	// Prepare message options
+	options := dto.MessageOptions{
+		MaxTokens: 1000,
 	}
 
-	// Process message through ChatUseCase
-	resp, err := r.chatUseCase.SendMessage(ctx, req)
+	// Process message through Orchestrator
+	resp, err := r.orchestrator.ProcessMessage(ctx, string(user.ID), msg.Content, options)
 	if err != nil {
 		r.logger.Error("failed to process message", "connector", connectorName, "user_id", msg.UserID, "error", err)
 		r.sendErrorResponse(ctx, conn, msg.UserID, "Sorry, I encountered an error generating a response.")

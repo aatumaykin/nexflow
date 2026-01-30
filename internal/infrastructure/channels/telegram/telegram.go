@@ -1,12 +1,14 @@
 package telegram
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"log/slog"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/atumaikin/nexflow/internal/domain/entity"
 	"github.com/atumaikin/nexflow/internal/domain/repository"
@@ -17,15 +19,71 @@ import (
 
 // Connector implements the channels.Connector interface for Telegram
 type Connector struct {
-	mu       sync.RWMutex
-	config   config.TelegramConfig
-	bot      *tgbotapi.BotAPI
-	userRepo repository.UserRepository
-	logger   *slog.Logger
-	running  bool
-	incoming chan *channels.Message
-	cancel   context.CancelFunc
-	updates  <-chan tgbotapi.Update
+	mu          sync.RWMutex
+	config      config.TelegramConfig
+	bot         *tgbotapi.BotAPI
+	userRepo    repository.UserRepository
+	logger      *slog.Logger
+	running     bool
+	incoming    chan *channels.Message
+	cancel      context.CancelFunc
+	updates     <-chan tgbotapi.Update
+	rateLimiter *rateLimiter
+}
+
+// rateLimiter implements token bucket rate limiting for Telegram API
+type rateLimiter struct {
+	tokens     chan struct{}
+	lastRefill time.Time
+	mu         sync.Mutex
+}
+
+const (
+	// Telegram API limits: 30 messages per second for bots
+	maxMessagesPerSecond = 30
+	rateLimitInterval    = time.Second
+
+	// Telegram message size limits
+	maxTextLength        = 4096
+	maxCaptionLength     = 1024
+	messageSplitInterval = 100 // milliseconds between split messages
+)
+
+// newRateLimiter creates a new rate limiter
+func newRateLimiter() *rateLimiter {
+	rl := &rateLimiter{
+		tokens:     make(chan struct{}, maxMessagesPerSecond),
+		lastRefill: time.Now(),
+	}
+	// Pre-fill tokens
+	for i := 0; i < maxMessagesPerSecond; i++ {
+		rl.tokens <- struct{}{}
+	}
+	return rl
+}
+
+// acquireToken acquires a token from rate limiter, blocking if necessary
+func (rl *rateLimiter) acquireToken() {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
+	now := time.Now()
+	elapsed := now.Sub(rl.lastRefill)
+
+	// Refill tokens based on elapsed time
+	if elapsed >= rateLimitInterval {
+		tokensToAdd := int(elapsed / rateLimitInterval)
+		for i := 0; i < tokensToAdd && len(rl.tokens) < maxMessagesPerSecond; i++ {
+			select {
+			case rl.tokens <- struct{}{}:
+			default:
+			}
+		}
+		rl.lastRefill = now
+	}
+
+	// Wait for a token to become available
+	<-rl.tokens
 }
 
 // NewConnector creates a new Telegram connector
@@ -35,10 +93,11 @@ func NewConnector(
 	logger *slog.Logger,
 ) *Connector {
 	return &Connector{
-		config:   cfg,
-		userRepo: userRepo,
-		logger:   logger,
-		incoming: make(chan *channels.Message, 100),
+		config:      cfg,
+		userRepo:    userRepo,
+		logger:      logger,
+		incoming:    make(chan *channels.Message, 100),
+		rateLimiter: newRateLimiter(),
 	}
 }
 
@@ -123,7 +182,7 @@ func (c *Connector) Stop(ctx context.Context) error {
 	return nil
 }
 
-// SendResponse sends a response to a user
+// SendResponse sends a response to a user with support for multiple message types
 func (c *Connector) SendResponse(ctx context.Context, userID string, response *channels.Response) error {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -138,16 +197,26 @@ func (c *Connector) SendResponse(ctx context.Context, userID string, response *c
 		return fmt.Errorf("invalid user ID format: %w", err)
 	}
 
-	// Create and send message
-	msg := tgbotapi.NewMessage(chatID, response.Content)
-	if _, err := c.bot.Send(msg); err != nil {
-		return fmt.Errorf("failed to send message: %w", err)
-	}
+	// Acquire rate limit token
+	c.rateLimiter.acquireToken()
 
-	if c.logger != nil {
-		c.logger.Debug("Message sent", "user_id", userID, "chat_id", chatID)
+	// Handle different response types
+	switch response.Type {
+	case "", channels.ResponseTypeText:
+		return c.sendTextMessage(ctx, chatID, response)
+	case channels.ResponseTypePhoto:
+		return c.sendPhotoMessage(ctx, chatID, response)
+	case channels.ResponseTypeDocument:
+		return c.sendDocumentMessage(ctx, chatID, response)
+	case channels.ResponseTypeAudio:
+		return c.sendAudioMessage(ctx, chatID, response)
+	case channels.ResponseTypeVideo:
+		return c.sendVideoMessage(ctx, chatID, response)
+	case channels.ResponseTypeSticker:
+		return c.sendStickerMessage(ctx, chatID, response)
+	default:
+		return fmt.Errorf("unsupported response type: %s", response.Type)
 	}
-	return nil
 }
 
 // Incoming returns a channel for incoming messages
@@ -584,4 +653,479 @@ func parseChatID(userID string) (int64, error) {
 // formatChatID formats a chat ID as a string
 func formatChatID(chatID int64) string {
 	return fmt.Sprintf("%d", chatID)
+}
+
+// sendTextMessage sends a text message with optional formatting and inline buttons
+func (c *Connector) sendTextMessage(ctx context.Context, chatID int64, response *channels.Response) error {
+	// Check if this is an edit operation
+	if response.MessageID != "" {
+		return c.editMessage(ctx, chatID, response)
+	}
+
+	// Handle long messages by splitting them
+	messages := c.splitLongText(response.Content, maxTextLength)
+
+	for i, msgText := range messages {
+		// Add a small delay between split messages to avoid rate limiting
+		if i > 0 {
+			time.Sleep(messageSplitInterval * time.Millisecond)
+			c.rateLimiter.acquireToken()
+		}
+
+		msg := tgbotapi.NewMessage(chatID, msgText)
+
+		// Set parse mode if specified in metadata
+		if response.Metadata != nil {
+			if parseMode, ok := response.Metadata["parse_mode"].(string); ok {
+				msg.ParseMode = parseMode
+			}
+		} else {
+			// Default to MarkdownV2 for rich text
+			msg.ParseMode = tgbotapi.ModeMarkdownV2
+		}
+
+		// Add inline buttons if provided
+		if len(response.Buttons) > 0 {
+			markup := c.buildInlineMarkup(response)
+			msg.ReplyMarkup = markup
+		}
+
+		if _, err := c.bot.Send(msg); err != nil {
+			return c.handleSendError(err, "text", chatID)
+		}
+	}
+
+	if c.logger != nil {
+		c.logger.Debug("Text message sent",
+			"chat_id", chatID,
+			"parts", len(messages),
+		)
+	}
+	return nil
+}
+
+// sendPhotoMessage sends a photo with optional caption and inline buttons
+func (c *Connector) sendPhotoMessage(ctx context.Context, chatID int64, response *channels.Response) error {
+	var photo tgbotapi.RequestFileData
+
+	if response.Media != nil {
+		if response.Media.FileID != "" {
+			// Use existing file ID
+			photo = tgbotapi.FileBytes{
+				Name:  "photo",
+				Bytes: []byte(response.Media.FileID),
+			}
+		} else if response.Media.FileData != nil {
+			// Upload new file from bytes
+			photo = tgbotapi.FileBytes{
+				Name:  "photo.jpg",
+				Bytes: response.Media.FileData,
+			}
+		} else if response.Media.URL != "" {
+			// Use URL
+			photo = tgbotapi.FileURL(response.Media.URL)
+		} else {
+			return fmt.Errorf("no photo data provided")
+		}
+	} else if response.Content == "" {
+		return fmt.Errorf("no photo content provided")
+	}
+
+	msg := tgbotapi.NewPhoto(chatID, photo)
+
+	// Add caption if provided
+	if response.Caption != "" {
+		caption := response.Caption
+		if len(caption) > maxCaptionLength {
+			caption = caption[:maxCaptionLength-3] + "..."
+		}
+		msg.Caption = caption
+	}
+
+	// Add inline buttons if provided
+	if len(response.Buttons) > 0 {
+		markup := c.buildInlineMarkup(response)
+		msg.ReplyMarkup = markup
+	}
+
+	_, err := c.bot.Send(msg)
+	if err != nil {
+		return c.handleSendError(err, "photo", chatID)
+	}
+
+	if c.logger != nil {
+		c.logger.Debug("Photo sent",
+			"chat_id", chatID,
+		)
+	}
+	return nil
+}
+
+// sendDocumentMessage sends a document with optional caption
+func (c *Connector) sendDocumentMessage(ctx context.Context, chatID int64, response *channels.Response) error {
+	if response.Media == nil {
+		return fmt.Errorf("no document data provided")
+	}
+
+	var document tgbotapi.RequestFileData
+	filename := "document.bin"
+
+	if response.Media.FileID != "" {
+		document = tgbotapi.FileBytes{
+			Name:  "file_id",
+			Bytes: []byte(response.Media.FileID),
+		}
+	} else if response.Media.FileData != nil {
+		if response.Media.FileName != "" {
+			filename = response.Media.FileName
+		}
+		document = tgbotapi.FileBytes{
+			Name:  filename,
+			Bytes: response.Media.FileData,
+		}
+	} else if response.Media.URL != "" {
+		document = tgbotapi.FileURL(response.Media.URL)
+	} else {
+		return fmt.Errorf("no document data provided")
+	}
+
+	msg := tgbotapi.NewDocument(chatID, document)
+
+	// Add caption if provided
+	if response.Caption != "" {
+		caption := response.Caption
+		if len(caption) > maxCaptionLength {
+			caption = caption[:maxCaptionLength-3] + "..."
+		}
+		msg.Caption = caption
+	}
+
+	// Add inline buttons if provided
+	if len(response.Buttons) > 0 {
+		markup := c.buildInlineMarkup(response)
+		msg.ReplyMarkup = markup
+	}
+
+	_, err := c.bot.Send(msg)
+	if err != nil {
+		return c.handleSendError(err, "document", chatID)
+	}
+
+	if c.logger != nil {
+		c.logger.Debug("Document sent",
+			"chat_id", chatID,
+			"filename", filename,
+		)
+	}
+	return nil
+}
+
+// sendAudioMessage sends an audio file with optional caption
+func (c *Connector) sendAudioMessage(ctx context.Context, chatID int64, response *channels.Response) error {
+	if response.Media == nil {
+		return fmt.Errorf("no audio data provided")
+	}
+
+	var audio tgbotapi.RequestFileData
+
+	if response.Media.FileID != "" {
+		audio = tgbotapi.FileBytes{
+			Name:  "file_id",
+			Bytes: []byte(response.Media.FileID),
+		}
+	} else if response.Media.FileData != nil {
+		audio = tgbotapi.FileBytes{
+			Name:  "audio.mp3",
+			Bytes: response.Media.FileData,
+		}
+	} else if response.Media.URL != "" {
+		audio = tgbotapi.FileURL(response.Media.URL)
+	} else {
+		return fmt.Errorf("no audio data provided")
+	}
+
+	msg := tgbotapi.NewAudio(chatID, audio)
+
+	// Add caption if provided
+	if response.Caption != "" {
+		caption := response.Caption
+		if len(caption) > maxCaptionLength {
+			caption = caption[:maxCaptionLength-3] + "..."
+		}
+		msg.Caption = caption
+	}
+
+	// Add inline buttons if provided
+	if len(response.Buttons) > 0 {
+		markup := c.buildInlineMarkup(response)
+		msg.ReplyMarkup = markup
+	}
+
+	_, err := c.bot.Send(msg)
+	if err != nil {
+		return c.handleSendError(err, "audio", chatID)
+	}
+
+	if c.logger != nil {
+		c.logger.Debug("Audio sent",
+			"chat_id", chatID,
+		)
+	}
+	return nil
+}
+
+// sendVideoMessage sends a video with optional caption
+func (c *Connector) sendVideoMessage(ctx context.Context, chatID int64, response *channels.Response) error {
+	if response.Media == nil {
+		return fmt.Errorf("no video data provided")
+	}
+
+	var video tgbotapi.RequestFileData
+
+	if response.Media.FileID != "" {
+		video = tgbotapi.FileBytes{
+			Name:  "file_id",
+			Bytes: []byte(response.Media.FileID),
+		}
+	} else if response.Media.FileData != nil {
+		video = tgbotapi.FileBytes{
+			Name:  "video.mp4",
+			Bytes: response.Media.FileData,
+		}
+	} else if response.Media.URL != "" {
+		video = tgbotapi.FileURL(response.Media.URL)
+	} else {
+		return fmt.Errorf("no video data provided")
+	}
+
+	msg := tgbotapi.NewVideo(chatID, video)
+
+	// Add caption if provided
+	if response.Caption != "" {
+		caption := response.Caption
+		if len(caption) > maxCaptionLength {
+			caption = caption[:maxCaptionLength-3] + "..."
+		}
+		msg.Caption = caption
+	}
+
+	// Add inline buttons if provided
+	if len(response.Buttons) > 0 {
+		markup := c.buildInlineMarkup(response)
+		msg.ReplyMarkup = markup
+	}
+
+	_, err := c.bot.Send(msg)
+	if err != nil {
+		return c.handleSendError(err, "video", chatID)
+	}
+
+	if c.logger != nil {
+		c.logger.Debug("Video sent",
+			"chat_id", chatID,
+		)
+	}
+	return nil
+}
+
+// sendStickerMessage sends a sticker
+func (c *Connector) sendStickerMessage(ctx context.Context, chatID int64, response *channels.Response) error {
+	if response.Media == nil || response.Media.FileID == "" {
+		return fmt.Errorf("no sticker file ID provided")
+	}
+
+	msg := tgbotapi.NewSticker(chatID, tgbotapi.FileBytes{
+		Name:  "sticker",
+		Bytes: []byte(response.Media.FileID),
+	})
+
+	_, err := c.bot.Send(msg)
+	if err != nil {
+		return c.handleSendError(err, "sticker", chatID)
+	}
+
+	if c.logger != nil {
+		c.logger.Debug("Sticker sent",
+			"chat_id", chatID,
+		)
+	}
+	return nil
+}
+
+// editMessage edits an existing message
+func (c *Connector) editMessage(ctx context.Context, chatID int64, response *channels.Response) error {
+	messageID, err := strconv.Atoi(response.MessageID)
+	if err != nil {
+		return fmt.Errorf("invalid message ID: %w", err)
+	}
+
+	msg := tgbotapi.NewEditMessageText(chatID, messageID, response.Content)
+
+	// Set parse mode if specified
+	if response.Metadata != nil {
+		if parseMode, ok := response.Metadata["parse_mode"].(string); ok {
+			msg.ParseMode = parseMode
+		}
+	} else {
+		msg.ParseMode = tgbotapi.ModeMarkdownV2
+	}
+
+	// Update inline buttons if provided
+	if len(response.Buttons) > 0 {
+		markup := c.buildInlineMarkup(response)
+		msg.ReplyMarkup = &markup
+	} else {
+		// Remove keyboard if no buttons provided
+		msg.ReplyMarkup = &tgbotapi.InlineKeyboardMarkup{InlineKeyboard: [][]tgbotapi.InlineKeyboardButton{}}
+	}
+
+	_, err = c.bot.Send(msg)
+	if err != nil {
+		return c.handleSendError(err, "edit", chatID)
+	}
+
+	if c.logger != nil {
+		c.logger.Debug("Message edited",
+			"chat_id", chatID,
+			"message_id", messageID,
+		)
+	}
+	return nil
+}
+
+// buildInlineMarkup builds an inline keyboard markup from response buttons
+func (c *Connector) buildInlineMarkup(response *channels.Response) tgbotapi.InlineKeyboardMarkup {
+	var keyboard [][]tgbotapi.InlineKeyboardButton
+
+	// Build keyboard row by row
+	currentRow := []tgbotapi.InlineKeyboardButton{}
+	for _, button := range response.Buttons {
+		btn := tgbotapi.InlineKeyboardButton{Text: button.Text}
+
+		if button.Data != "" {
+			btn.CallbackData = &button.Data
+		} else if button.CallbackData != "" {
+			btn.CallbackData = &button.CallbackData
+		}
+
+		if button.URL != "" {
+			btn.URL = &button.URL
+		}
+
+		if button.SwitchInline != "" {
+			btn.SwitchInlineQuery = &button.SwitchInline
+		}
+
+		if button.InlineData != "" {
+			btn.SwitchInlineQueryCurrentChat = &button.InlineData
+		}
+
+		currentRow = append(currentRow, btn)
+
+		// Simple heuristic: start a new row every 2 buttons
+		if len(currentRow) == 2 {
+			keyboard = append(keyboard, currentRow)
+			currentRow = []tgbotapi.InlineKeyboardButton{}
+		}
+	}
+
+	// Add any remaining buttons
+	if len(currentRow) > 0 {
+		keyboard = append(keyboard, currentRow)
+	}
+
+	return tgbotapi.InlineKeyboardMarkup{InlineKeyboard: keyboard}
+}
+
+// handleSendError handles and logs send errors with context
+func (c *Connector) handleSendError(err error, msgType string, chatID int64) error {
+	errStr := err.Error()
+
+	// Common Telegram API errors
+	if strings.Contains(errStr, "Forbidden: bot was blocked by the user") {
+		if c.logger != nil {
+			c.logger.Warn("Bot blocked by user", "chat_id", chatID, "error", err)
+		}
+		return fmt.Errorf("bot was blocked by user")
+	}
+
+	if strings.Contains(errStr, "Forbidden: user is deactivated") {
+		if c.logger != nil {
+			c.logger.Warn("User is deactivated", "chat_id", chatID, "error", err)
+		}
+		return fmt.Errorf("user is deactivated")
+	}
+
+	if strings.Contains(errStr, "Forbidden: bot was kicked from the group chat") {
+		if c.logger != nil {
+			c.logger.Warn("Bot was kicked from group", "chat_id", chatID, "error", err)
+		}
+		return fmt.Errorf("bot was kicked from group")
+	}
+
+	if strings.Contains(errStr, "Forbidden: chat not found") {
+		if c.logger != nil {
+			c.logger.Warn("Chat not found", "chat_id", chatID, "error", err)
+		}
+		return fmt.Errorf("chat not found")
+	}
+
+	if strings.Contains(errStr, "Too Many Requests: retry after") {
+		if c.logger != nil {
+			c.logger.Warn("Rate limit exceeded", "chat_id", chatID, "error", err)
+		}
+		return fmt.Errorf("rate limit exceeded: %w", err)
+	}
+
+	if strings.Contains(errStr, "Bad Request: message is too long") {
+		if c.logger != nil {
+			c.logger.Warn("Message too long", "chat_id", chatID, "error", err)
+		}
+		return fmt.Errorf("message is too long")
+	}
+
+	// Generic error
+	if c.logger != nil {
+		c.logger.Error("Failed to send message",
+			"type", msgType,
+			"chat_id", chatID,
+			"error", err,
+		)
+	}
+
+	return fmt.Errorf("failed to send %s message: %w", msgType, err)
+}
+
+// splitLongText splits a long text message into multiple parts
+func (c *Connector) splitLongText(text string, maxLength int) []string {
+	if len(text) <= maxLength {
+		return []string{text}
+	}
+
+	var parts []string
+	var current bytes.Buffer
+	textRunes := []rune(text)
+
+	for i, r := range textRunes {
+		if current.Len() >= maxLength {
+			parts = append(parts, current.String())
+			current.Reset()
+		}
+		current.WriteRune(r)
+
+		// Try to split at newline or punctuation
+		if i < len(textRunes)-1 && current.Len() >= maxLength-10 {
+			nextR := textRunes[i+1]
+			if nextR == '\n' || nextR == '.' || nextR == '!' || nextR == '?' {
+				parts = append(parts, current.String())
+				current.Reset()
+			}
+		}
+	}
+
+	if current.Len() > 0 {
+		parts = append(parts, current.String())
+	}
+
+	return parts
 }
