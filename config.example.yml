@@ -9,8 +9,9 @@ logging:
   format: "json"
 
 database:
-  driver: "sqlite"
-  dsn: "data/nexflow.db"
+  type: "sqlite"
+  path: "data/nexflow.db"
+  migrations_path: "./migrations"
 
 # LLM Providers Configuration
 llm:
@@ -68,13 +69,17 @@ skills:
 
 # Channels Configuration
 channels:
+  # Telegram Bot Configuration
   telegram:
     enabled: false
     bot_token: "${TELEGRAM_BOT_TOKEN}"
+    allowed_users: []
 
+  # Discord Bot Configuration
   discord:
     enabled: false
     bot_token: "${DISCORD_BOT_TOKEN}"
 
+  # Web Interface Configuration
   web:
     enabled: true

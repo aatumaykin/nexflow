@@ -12,6 +12,7 @@ type Config struct {
 	Channels ChannelsConfig `yaml:"channels"`
 	Skills   SkillsConfig   `yaml:"skills"`
 	Logging  LoggingConfig  `yaml:"logging"`
+	EventBus EventBusConfig `yaml:"eventbus"`
 }
 
 // Load loads configuration from a YAML file.
@@ -58,6 +59,12 @@ func (c *Config) Validate() error {
 		return err
 	}
 	if err := c.Logging.Validate(); err != nil {
+		return err
+	}
+	if err := c.EventBus.Validate(); err != nil {
+		return err
+	}
+	if err := c.Channels.Validate(); err != nil {
 		return err
 	}
 	return nil

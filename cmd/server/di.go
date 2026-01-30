@@ -6,8 +6,11 @@ import (
 	"time"
 
 	"github.com/atumaikin/nexflow/internal/application/ports"
+	"github.com/atumaikin/nexflow/internal/application/router"
 	"github.com/atumaikin/nexflow/internal/application/usecase"
 	"github.com/atumaikin/nexflow/internal/domain/repository"
+	"github.com/atumaikin/nexflow/internal/infrastructure/channels"
+	channelmock "github.com/atumaikin/nexflow/internal/infrastructure/channels/mock"
 	httpinf "github.com/atumaikin/nexflow/internal/infrastructure/http"
 	llmadapter "github.com/atumaikin/nexflow/internal/infrastructure/llm"
 	anthropic "github.com/atumaikin/nexflow/internal/infrastructure/llm/anthropic"
@@ -46,6 +49,14 @@ type DIContainer struct {
 	// Ports
 	llmProvider  ports.LLMProvider
 	skillRuntime ports.SkillRuntime
+
+	// Connectors
+	telegramConnector channels.Connector
+	discordConnector  channels.Connector
+	webConnector      channels.Connector
+
+	// Router
+	messageRouter *router.MessageRouter
 
 	// Use Cases
 	chatUseCase     *usecase.ChatUseCase
@@ -93,6 +104,16 @@ func NewDIContainer(cfg *config.Config, logger logging.Logger, db database.Datab
 
 	// Initialize ports
 	if err := container.initPorts(); err != nil {
+		return nil, err
+	}
+
+	// Initialize connectors
+	if err := container.initConnectors(); err != nil {
+		return nil, err
+	}
+
+	// Initialize message router
+	if err := container.initMessageRouter(); err != nil {
 		return nil, err
 	}
 
@@ -173,6 +194,55 @@ func (c *DIContainer) initPorts() error {
 	}
 
 	c.logger.Info("ports initialized successfully")
+	return nil
+}
+
+// initConnectors initializes all channel connectors based on configuration
+func (c *DIContainer) initConnectors() error {
+	// Initialize Telegram connector if enabled
+	if c.config.Channels.Telegram.Enabled {
+		// For now, use mock connector
+		// TODO: Replace with real Telegram connector implementation
+		c.telegramConnector = channelmock.NewTelegramConnector()
+		c.logger.Info("telegram connector initialized (mock)")
+	}
+
+	// Initialize Discord connector if enabled
+	if c.config.Channels.Discord.Enabled {
+		// For now, use mock connector
+		// TODO: Replace with real Discord connector implementation
+		c.discordConnector = channelmock.NewDiscordConnector()
+		c.logger.Info("discord connector initialized (mock)")
+	}
+
+	// Initialize Web connector if enabled
+	if c.config.Channels.Web.Enabled {
+		// For now, use mock connector
+		// TODO: Replace with real Web connector implementation
+		c.webConnector = channelmock.NewWebConnector()
+		c.logger.Info("web connector initialized (mock)")
+	}
+
+	return nil
+}
+
+// initMessageRouter initializes the message router and registers all connectors
+func (c *DIContainer) initMessageRouter() error {
+	// Create message router (chatUseCase will be set in initUseCases)
+	c.messageRouter = router.NewMessageRouter(nil, c.eventBus, c.logger)
+
+	// Register all enabled connectors
+	if c.telegramConnector != nil {
+		c.messageRouter.RegisterConnector(c.telegramConnector)
+	}
+	if c.discordConnector != nil {
+		c.messageRouter.RegisterConnector(c.discordConnector)
+	}
+	if c.webConnector != nil {
+		c.messageRouter.RegisterConnector(c.webConnector)
+	}
+
+	c.logger.Info("message router initialized")
 	return nil
 }
 
@@ -296,9 +366,28 @@ func (c *DIContainer) initUseCases() error {
 		c.taskRepo,
 		c.llmProvider,
 		c.skillRuntime,
-		c.eventBus,
 		c.logger,
 	)
+
+	// Update message router with chat use case now that it's initialized
+	if c.messageRouter != nil {
+		// Access the private field via reflection or create a setter
+		// For now, we'll create a new router with the use case
+		routerWithUseCase := router.NewMessageRouter(c.chatUseCase, c.eventBus, c.logger)
+
+		// Re-register all connectors
+		if c.telegramConnector != nil {
+			routerWithUseCase.RegisterConnector(c.telegramConnector)
+		}
+		if c.discordConnector != nil {
+			routerWithUseCase.RegisterConnector(c.discordConnector)
+		}
+		if c.webConnector != nil {
+			routerWithUseCase.RegisterConnector(c.webConnector)
+		}
+
+		c.messageRouter = routerWithUseCase
+	}
 
 	// User use case
 	c.userUseCase = usecase.NewUserUseCase(
@@ -372,6 +461,11 @@ func (c *DIContainer) EventBus() *eventbus.EventBus {
 	return c.eventBus
 }
 
+// MessageRouter returns the message router instance
+func (c *DIContainer) MessageRouter() *router.MessageRouter {
+	return c.messageRouter
+}
+
 // Getters for HTTP handlers
 func (c *DIContainer) UserHandler() *httpinf.UserHandler {
 	return c.userHandler
@@ -404,6 +498,13 @@ func (c *DIContainer) LogHandler() *httpinf.LogHandler {
 // Shutdown performs cleanup operations
 func (c *DIContainer) Shutdown() error {
 	c.logger.Info("shutting down DI container")
+
+	// Stop message router if it was initialized
+	if c.messageRouter != nil {
+		if err := c.messageRouter.Stop(); err != nil {
+			c.logger.Error("failed to stop message router", "error", err)
+		}
+	}
 
 	// Stop event bus if it was enabled and initialized
 	if c.config.EventBus.Enabled && c.eventBus != nil {
