@@ -57,4 +57,10 @@ bin/
 # OS
 Thumbs.db
 .DS_Store
-coverage.out
+
+# Beads local state
+.beads/export-state/
+.beads/daemon.log
+.beads/daemon.lock
+.beads/daemon.pid
+.beads/.local_version

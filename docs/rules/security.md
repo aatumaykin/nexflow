@@ -227,6 +227,42 @@ git secrets --add 'api_key'
 git secrets --scan
 ```
 
+## Git контроль файлов (КРИТИЧНО)
+
+**ПЕРЕД ЛЮБЫМ git commit:**
+
+1. **Проверка файлов на коммит:**
+   ```bash
+   git status --short
+   ```
+
+2. **Запрещены к коммиту:**
+   - Бинарные файлы: `*.exe`, `*.dll`, `*.so`, `*.dylib`, `server`, `*.test`
+   - Coverage файлы: `*.out`, `coverage.out`
+   - Базы данных: `*.db`, `*.sqlite`, `*.sqlite3`
+   - Логи: `*.log`, `logs/`, `*.log.*`
+   - Временные файлы: `tmp/`, `temp/`, `*.tmp`, `*.swp`, `*.swo`, `*~`
+   - Файлы с локальными путями: содержащие `/Users/`, `/home/`
+   - OS файлы: `.DS_Store`, `Thumbs.db`
+   - Environment: `.env`, `.env.local`, `.env.*.local`
+   - IDE: `.vscode/`, `.idea/`
+   - Локальное состояние: `.beads/export-state/`, `.beads/daemon.log`, `.beads/daemon.lock`
+
+3. **Правила проверки:**
+   - НЕ добавляйте подозрительные файлы в commit
+   - Уведомляйте пользователя о запрещенных файлах
+   - Предлагайте добавить в `.gitignore`
+
+4. **Проверка на локальные пути:**
+   ```bash
+   git diff --cached | grep -E "(\+|)\s*/(Users|home)/" || echo "OK"
+   ```
+
+5. **Пример уведомления:**
+   ```
+   ⚠️ Файл server не должен быть закоммичен. Добавьте его в .gitignore или удалите перед коммитом.
+   ```
+
 ## Логирование безопасности
 
 **✅ Логируйте:**
