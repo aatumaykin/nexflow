@@ -29,6 +29,7 @@ func NewUser(channel, channelID string) *User {
 // CanAccessSession checks if the user can access the specified session.
 // Currently, this is a placeholder that always returns true.
 // TODO: Implement access control logic based on user permissions.
+// Future feature - see issue Nexflow-a97 for implementation details.
 func (u *User) CanAccessSession(sessionID valueobject.SessionID) bool {
 	// For now, users can access their own sessions
 	return true

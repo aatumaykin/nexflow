@@ -6,15 +6,15 @@ import (
 
 // Config represents the application configuration
 type Config struct {
-	Server   ServerConfig   `json:"server" yaml:"server"`
-	Database DatabaseConfig `json:"database" yaml:"database"`
-	LLM      LLMConfig      `json:"llm" yaml:"llm"`
-	Channels ChannelsConfig `json:"channels" yaml:"channels"`
-	Skills   SkillsConfig   `json:"skills" yaml:"skills"`
-	Logging  LoggingConfig  `json:"logging" yaml:"logging"`
+	Server   ServerConfig   `yaml:"server"`
+	Database DatabaseConfig `yaml:"database"`
+	LLM      LLMConfig      `yaml:"llm"`
+	Channels ChannelsConfig `yaml:"channels"`
+	Skills   SkillsConfig   `yaml:"skills"`
+	Logging  LoggingConfig  `yaml:"logging"`
 }
 
-// Load loads configuration from a file (YAML or JSON).
+// Load loads configuration from a YAML file.
 // It expands environment variables in the format ${VAR_NAME} and validates the configuration.
 // Returns an error if the file cannot be read, parsed, or if the configuration is invalid.
 func Load(path string) (*Config, error) {
@@ -63,7 +63,7 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-// parseConfig parses configuration data from YAML or JSON file
+// parseConfig parses configuration data from YAML file
 func parseConfig(data []byte, path string) (*Config, error) {
 	var config Config
 	ext := getFileExtension(path)
@@ -71,10 +71,6 @@ func parseConfig(data []byte, path string) (*Config, error) {
 	switch ext {
 	case ".yaml", ".yml":
 		if err := yaml.Unmarshal(data, &config); err != nil {
-			return nil, err
-		}
-	case ".json":
-		if err := unmarshalJSON(data, &config); err != nil {
 			return nil, err
 		}
 	default:

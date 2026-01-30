@@ -1,0 +1,67 @@
+# Nexflow Configuration
+
+server:
+  host: "0.0.0.0"
+  port: 8080
+
+logging:
+  level: "info"
+  format: "json"
+
+database:
+  driver: "sqlite"
+  dsn: "data/nexflow.db"
+
+# LLM Providers Configuration
+llm:
+  # Default provider to use: openai, anthropic, or ollama
+  default_provider: "openai"
+
+  # Provider-specific configurations
+  providers:
+    # OpenAI Configuration
+    openai:
+      # API Key (use environment variable for security)
+      api_key: "${OPENAI_API_KEY}"
+      # Base URL (optional, defaults to https://api.openai.com/v1)
+      base_url: "https://api.openai.com/v1"
+      # Model to use
+      model: "gpt-4"
+
+    # Anthropic Configuration
+    anthropic:
+      # API Key (use environment variable for security)
+      api_key: "${ANTHROPIC_API_KEY}"
+      # Base URL (optional, defaults to https://api.anthropic.com/v1)
+      base_url: "https://api.anthropic.com/v1"
+      # Model to use
+      model: "claude-3-sonnet-20240229"
+
+    # Ollama Configuration (local LLM)
+    ollama:
+      # Base URL (optional, defaults to http://localhost:11434)
+      base_url: "http://localhost:11434"
+      # Model to use
+      model: "llama2"
+
+# Skills Runtime Configuration
+skills:
+  # Directory containing skill executables
+  directory: "./skills"
+  # Execution timeout in seconds
+  timeout_sec: 60
+  # Enable sandbox mode (restricts skill execution)
+  sandbox_enabled: false
+
+# Channels Configuration
+channels:
+  telegram:
+    enabled: false
+    bot_token: "${TELEGRAM_BOT_TOKEN}"
+
+  discord:
+    enabled: false
+    bot_token: "${DISCORD_BOT_TOKEN}"
+
+  web:
+    enabled: true

@@ -53,7 +53,7 @@ Nexflow говорит на русском и английском, UX/доки 
 
 **Требования:**
 - Единый user identity через все каналы
-- Конфигурация через YAML/JSON + ENV
+- Конфигурация через YAML + ENV
 - Сообщение → event → LLM → tools → response
 
 **Delivery Providers** (из clawgo):
@@ -271,11 +271,11 @@ Agent: [Обновляет memory/memory.md с новым предпочтени
 
 ### Технологический стек
 
-- **Ядро:** Go ≥1.22, монолитный бинарь
+- **Ядро:** Go ≥1.22, монолитный бинарий
 - **БД:** SQLite по умолчанию, опционально Postgres
 - **Frontend:** Svelte
 - **LLM:** Anthropic (Claude), OpenAI, Ollama, Google Gemini, z.ai, OpenRouter + кастомный провайдер
-- **Конфигурация:** YAML + JSON с поддержкой ENV подстановки `${VAR_NAME:default_value}`
+- **Конфигурация:** YAML с поддержкой ENV подстановки `${VAR_NAME:default_value}`
 - **Навыки:** Bash, Python, Node.js
 - **Деплой:** Docker/Docker Compose
 

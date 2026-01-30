@@ -5,7 +5,7 @@
 **Общий статус проекта: ~30% завершено**
 
 ### ✅ ЗАВЕРШЕНО (MVP блокеры):
-- Проектная структура и конфигурация (YAML/JSON + ENV)
+- Проектная структура и конфигурация (YAML + ENV)
 - База данных (SQLite/Postgres) с миграциями и SQLC
 - Логирование (slog) с JSON форматом и маскированием секретов
 - Domain layer (entities, repositories, value objects) - ПОЛНОСТЬЮ
@@ -76,7 +76,7 @@
 - **БД:** SQLite (по умолчанию), Postgres (опционально)
 - **Frontend:** Svelte
 - **LLM:** Anthropic (Claude), OpenAI, Ollama, Google Gemini, z.ai, OpenRouter + кастомный провайдер
-- **Конфигурация:** YAML + JSON
+- **Конфигурация:** YAML
 - **Навыки:** Bash, Python, Node.js
 - **Деплой:** Docker/Docker Compose
 
@@ -616,8 +616,7 @@ templates:
 #### 1.2 Конфигурация
 - [x] Создать структуру конфигурации (struct)
 - [x] Реализовать парсер YAML
-- [x] Реализовать парсер JSON
-- [x] Создать пример `config.yml` и `config.json`
+- [x] Создать пример `config.yml`
 - [x] Реализовать загрузку из ENV переменных
 
 **Статус:** Реализовано в `internal/shared/config/`

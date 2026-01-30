@@ -151,6 +151,11 @@ func (l *SlogLogger) ErrorContext(ctx context.Context, msg string, args ...any) 
 	l.logger.ErrorContext(ctx, msg, args...)
 }
 
+// GetSlogLogger returns the underlying slog.Logger
+func (l *SlogLogger) GetSlogLogger() *slog.Logger {
+	return l.logger
+}
+
 // NoopLogger is a no-op logger that implements Logger interface but does nothing.
 // It's useful for testing or when logging is not desired.
 type NoopLogger struct{}

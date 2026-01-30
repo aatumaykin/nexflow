@@ -1,3 +1,5 @@
+//go:generate go run github.com/atumaikin/nexflow/cmd/genmapper user_dto.go session_dto.go message_dto.go task_dto.go skill_dto.go schedule_dto.go
+
 package dto
 
 import (

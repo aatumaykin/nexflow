@@ -1,7 +1,6 @@
 package config
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -26,14 +25,6 @@ func readConfigFile(path string) ([]byte, error) {
 // getFileExtension returns the lowercase file extension
 func getFileExtension(path string) string {
 	return strings.ToLower(filepath.Ext(path))
-}
-
-// unmarshalJSON parses JSON data into config
-func unmarshalJSON(data []byte, config *Config) error {
-	if err := json.Unmarshal(data, config); err != nil {
-		return fmt.Errorf("failed to parse JSON config: %w", err)
-	}
-	return nil
 }
 
 // errUnsupportedFormat returns error for unsupported config format

@@ -2,11 +2,14 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
+	httpinf "github.com/atumaikin/nexflow/internal/infrastructure/http"
 	"github.com/atumaikin/nexflow/internal/infrastructure/persistence/database"
 	"github.com/atumaikin/nexflow/internal/shared/config"
 	"github.com/atumaikin/nexflow/internal/shared/logging"
@@ -61,9 +64,43 @@ func main() {
 	// skillUseCase := diContainer.SkillUseCase()
 	// scheduleUseCase := diContainer.ScheduleUseCase()
 
-	// TODO: Initialize HTTP server (when ready)
-	// server := http.NewServer(&cfg.Server, chatUseCase, logger)
-	// go server.Run()
+	// Initialize HTTP server
+	router := httpinf.NewRouter()
+
+	// Register routes
+	httpinf.RegisterUserRoutes(router, diContainer.UserHandler())
+	httpinf.RegisterSessionRoutes(router, diContainer.SessionHandler())
+	httpinf.RegisterMessageRoutes(router, diContainer.MessageHandler())
+	httpinf.RegisterTaskRoutes(router, diContainer.TaskHandler())
+	httpinf.RegisterSkillRoutes(router, diContainer.SkillHandler())
+	httpinf.RegisterScheduleRoutes(router, diContainer.ScheduleHandler())
+	httpinf.RegisterLogRoutes(router, diContainer.LogHandler())
+
+	// Apply middleware
+	handler := httpinf.NewHandlerBuilder(router.Handler()).
+		Use(httpinf.Logging).
+		Use(httpinf.Recovery).
+		Use(httpinf.CORS).
+		Use(httpinf.RequestID).
+		Build()
+
+	// Create HTTP server
+	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
+	httpServer := httpinf.NewServer(&httpinf.ServerConfig{
+		Addr:         addr,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  120 * time.Second,
+		Handler:      handler,
+	})
+
+	// Start HTTP server in goroutine
+	serverCtx := context.Background()
+	go func() {
+		if err := httpServer.Start(serverCtx); err != nil {
+			logger.Error("HTTP server error", "error", err)
+		}
+	}()
 
 	logger.Info("Application started successfully, waiting for shutdown signal")
 
@@ -76,8 +113,13 @@ func main() {
 
 	logger.Info("Shutting down gracefully...")
 
-	// TODO: Shutdown HTTP server
-	// server.Shutdown()
+	// Shutdown HTTP server
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
+
+	if err := httpServer.Shutdown(shutdownCtx); err != nil {
+		logger.Error("Failed to shutdown HTTP server", "error", err)
+	}
 
 	// Cleanup DI container
 	if err := diContainer.Shutdown(); err != nil {
