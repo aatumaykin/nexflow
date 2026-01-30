@@ -177,3 +177,20 @@ func SuccessSkillExecutionResponse(output string) *SkillExecutionResponse {
 		Output:  output,
 	}
 }
+
+// ErrorSendMessageResponse creates an error response for SendMessage operations
+func ErrorSendMessageResponse(err error) *SendMessageResponse {
+	return &SendMessageResponse{
+		Success: false,
+		Error:   fmt.Sprintf("operation failed: %v", err),
+	}
+}
+
+// SuccessSendMessageResponse creates a success response for SendMessage operations
+func SuccessSendMessageResponse(message *MessageDTO, messages []*MessageDTO) *SendMessageResponse {
+	return &SendMessageResponse{
+		Success:  true,
+		Message:  message,
+		Messages: messages,
+	}
+}

@@ -11,37 +11,22 @@ import (
 
 // UpdateSchedule updates an existing schedule
 func (uc *ScheduleUseCase) UpdateSchedule(ctx context.Context, id string, req dto.UpdateScheduleRequest) (*dto.ScheduleResponse, error) {
-	// Get existing schedule
 	schedule, err := uc.scheduleRepo.FindByID(ctx, id)
 	if err != nil {
-		return &dto.ScheduleResponse{
-			Success: false,
-			Error:   fmt.Sprintf("schedule not found: %v", err),
-		}, fmt.Errorf("schedule not found: %w", err)
+		return handleScheduleError(err, "schedule not found")
 	}
 
-	// Update fields
 	if err := uc.updateScheduleFields(schedule, req); err != nil {
-		return &dto.ScheduleResponse{
-			Success: false,
-			Error:   err.Error(),
-		}, err
+		return handleScheduleError(err, "failed to update schedule fields")
 	}
 
-	// Save updated schedule
 	if err := uc.scheduleRepo.Update(ctx, schedule); err != nil {
-		return &dto.ScheduleResponse{
-			Success: false,
-			Error:   fmt.Sprintf("failed to update schedule: %v", err),
-		}, fmt.Errorf("failed to update schedule: %w", err)
+		return handleScheduleError(err, "failed to update schedule")
 	}
 
 	uc.logger.Info("schedule updated", "schedule_id", schedule.ID, "skill", schedule.Skill)
 
-	return &dto.ScheduleResponse{
-		Success:  true,
-		Schedule: dto.ScheduleDTOFromEntity(schedule),
-	}, nil
+	return dto.SuccessScheduleResponse(dto.ScheduleDTOFromEntity(schedule)), nil
 }
 
 // updateScheduleFields updates schedule fields from request

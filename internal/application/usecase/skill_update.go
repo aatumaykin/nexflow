@@ -11,37 +11,22 @@ import (
 
 // UpdateSkill updates an existing skill
 func (uc *SkillUseCase) UpdateSkill(ctx context.Context, id string, req dto.UpdateSkillRequest) (*dto.SkillResponse, error) {
-	// Get existing skill
 	skill, err := uc.skillRepo.FindByID(ctx, id)
 	if err != nil {
-		return &dto.SkillResponse{
-			Success: false,
-			Error:   fmt.Sprintf("skill not found: %v", err),
-		}, fmt.Errorf("skill not found: %w", err)
+		return handleSkillError(err, "skill not found")
 	}
 
-	// Update skill fields
 	if err := uc.updateSkillFields(skill, req); err != nil {
-		return &dto.SkillResponse{
-			Success: false,
-			Error:   err.Error(),
-		}, err
+		return handleSkillError(err, "failed to update skill fields")
 	}
 
-	// Save updated skill
 	if err := uc.skillRepo.Update(ctx, skill); err != nil {
-		return &dto.SkillResponse{
-			Success: false,
-			Error:   fmt.Sprintf("failed to update skill: %v", err),
-		}, fmt.Errorf("failed to update skill: %w", err)
+		return handleSkillError(err, "failed to update skill")
 	}
 
 	uc.logger.Info("skill updated", "skill_id", skill.ID, "name", skill.Name)
 
-	return &dto.SkillResponse{
-		Success: true,
-		Skill:   dto.SkillDTOFromEntity(skill),
-	}, nil
+	return dto.SuccessSkillResponse(dto.SkillDTOFromEntity(skill)), nil
 }
 
 // updateSkillFields updates skill fields from request

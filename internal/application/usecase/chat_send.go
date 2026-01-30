@@ -2,7 +2,6 @@ package usecase
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/atumaikin/nexflow/internal/application/dto"
 	"github.com/atumaikin/nexflow/internal/application/ports"
@@ -18,49 +17,29 @@ import (
 //   - *dto.SendMessageResponse: Response containing AI message and conversation history
 //   - error: Error if operation failed
 func (uc *ChatUseCase) SendMessage(ctx context.Context, req dto.SendMessageRequest) (*dto.SendMessageResponse, error) {
-	// Find or create user
 	user, err := uc.findOrCreateUser(ctx, req.UserID)
 	if err != nil {
-		return &dto.SendMessageResponse{
-			Success: false,
-			Error:   fmt.Sprintf("failed to get user: %v", err),
-		}, fmt.Errorf("failed to get user: %w", err)
+		return handleSendError(err, "failed to get user")
 	}
 
-	// Create new session
 	session, err := uc.createSession(ctx, user)
 	if err != nil {
-		return &dto.SendMessageResponse{
-			Success: false,
-			Error:   fmt.Sprintf("failed to create session: %v", err),
-		}, fmt.Errorf("failed to create session: %w", err)
+		return handleSendError(err, "failed to create session")
 	}
 
-	// Save user message
 	_, err = uc.saveUserMessage(ctx, session, req.Message.Content)
 	if err != nil {
-		return &dto.SendMessageResponse{
-			Success: false,
-			Error:   fmt.Sprintf("failed to save user message: %v", err),
-		}, fmt.Errorf("failed to save user message: %w", err)
+		return handleSendError(err, "failed to save user message")
 	}
 
-	// Get conversation history
 	llmMessages, err := uc.getConversationHistory(ctx, session)
 	if err != nil {
-		return &dto.SendMessageResponse{
-			Success: false,
-			Error:   fmt.Sprintf("failed to get conversation history: %v", err),
-		}, fmt.Errorf("failed to get conversation history: %w", err)
+		return handleSendError(err, "failed to get conversation history")
 	}
 
-	// Call LLM
 	llmResp, err := uc.callLLM(ctx, llmMessages, req.Options)
 	if err != nil {
-		return &dto.SendMessageResponse{
-			Success: false,
-			Error:   fmt.Sprintf("failed to generate response: %v", err),
-		}, fmt.Errorf("failed to generate response: %w", err)
+		return handleSendError(err, "failed to generate response")
 	}
 
 	// Save assistant message

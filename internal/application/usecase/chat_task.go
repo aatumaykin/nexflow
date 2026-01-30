@@ -11,38 +11,25 @@ import (
 
 // ExecuteSkill executes a skill based on LLM response
 func (uc *ChatUseCase) ExecuteSkill(ctx context.Context, sessionID, skillName string, input map[string]interface{}) (*dto.SkillExecutionResponse, error) {
-	// Convert input to JSON
 	inputJSON, err := json.Marshal(input)
 	if err != nil {
-		return &dto.SkillExecutionResponse{
-			Success: false,
-			Error:   fmt.Sprintf("failed to marshal skill input: %v", err),
-		}, fmt.Errorf("failed to marshal skill input: %w", err)
+		return handleSkillExecutionError(err, "failed to marshal skill input")
 	}
 
-	// Create task
 	task := entity.NewTask(sessionID, skillName, string(inputJSON))
 	if err := uc.taskRepo.Create(ctx, task); err != nil {
-		return &dto.SkillExecutionResponse{
-			Success: false,
-			Error:   fmt.Sprintf("failed to create task: %v", err),
-		}, fmt.Errorf("failed to create task: %w", err)
+		return handleSkillExecutionError(err, "failed to create task")
 	}
 
-	// Execute skill using SkillRuntime port
 	execution, err := uc.skillRuntime.Execute(ctx, skillName, input)
 	if err != nil {
 		task.SetFailed(fmt.Sprintf("skill execution failed: %v", err))
 		if err := uc.taskRepo.Update(ctx, task); err != nil {
 			uc.logger.Error("failed to update task status", "error", err)
 		}
-		return &dto.SkillExecutionResponse{
-			Success: false,
-			Error:   execution.Error,
-		}, fmt.Errorf("skill execution failed: %w", err)
+		return handleSkillExecutionError(err, "skill execution failed")
 	}
 
-	// Update task with execution result
 	task.SetRunning()
 	if err := uc.taskRepo.Update(ctx, task); err != nil {
 		uc.logger.Error("failed to update task status", "error", err)
@@ -69,7 +56,7 @@ func (uc *ChatUseCase) ExecuteSkill(ctx context.Context, sessionID, skillName st
 func (uc *ChatUseCase) GetSessionTasks(ctx context.Context, sessionID string) (*dto.TasksResponse, error) {
 	tasks, err := uc.taskRepo.FindBySessionID(ctx, sessionID)
 	if err != nil {
-		return dto.ErrorTaskResponse(fmt.Errorf("failed to get session tasks: %w", err)), fmt.Errorf("failed to get session tasks: %w", err)
+		return handleTasksError(err, "failed to get session tasks")
 	}
 
 	taskDTOs := make([]*dto.TaskDTO, 0, len(tasks))

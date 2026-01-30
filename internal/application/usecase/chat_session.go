@@ -2,7 +2,6 @@ package usecase
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/atumaikin/nexflow/internal/application/dto"
 	"github.com/atumaikin/nexflow/internal/domain/entity"
@@ -12,7 +11,7 @@ import (
 func (uc *ChatUseCase) GetUserSessions(ctx context.Context, userID string) (*dto.SessionsResponse, error) {
 	sessions, err := uc.sessionRepo.FindByUserID(ctx, userID)
 	if err != nil {
-		return dto.ErrorSessionsResponse(fmt.Errorf("failed to get user sessions: %w", err)), fmt.Errorf("failed to get user sessions: %w", err)
+		return dto.ErrorSessionsResponse(err), err
 	}
 
 	sessionDTOs := make([]*dto.SessionDTO, 0, len(sessions))
@@ -27,7 +26,7 @@ func (uc *ChatUseCase) GetUserSessions(ctx context.Context, userID string) (*dto
 func (uc *ChatUseCase) CreateSession(ctx context.Context, req dto.CreateSessionRequest) (*dto.SessionResponse, error) {
 	session := entity.NewSession(req.UserID)
 	if err := uc.sessionRepo.Create(ctx, session); err != nil {
-		return dto.ErrorSessionResponse(fmt.Errorf("failed to create session: %w", err)), fmt.Errorf("failed to create session: %w", err)
+		return handleSessionError(err, "failed to create session")
 	}
 
 	return dto.SuccessSessionResponse(dto.SessionDTOFromEntity(session)), nil

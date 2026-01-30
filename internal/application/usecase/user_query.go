@@ -2,7 +2,6 @@ package usecase
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/atumaikin/nexflow/internal/application/dto"
 )
@@ -11,7 +10,7 @@ import (
 func (uc *UserUseCase) GetUserByID(ctx context.Context, id string) (*dto.UserResponse, error) {
 	user, err := uc.userRepo.FindByID(ctx, id)
 	if err != nil {
-		return dto.ErrorUserResponse(fmt.Errorf("failed to find user: %w", err)), fmt.Errorf("failed to find user: %w", err)
+		return handleUserError(err, "failed to find user")
 	}
 
 	return dto.SuccessUserResponse(dto.UserDTOFromEntity(user)), nil
@@ -21,7 +20,7 @@ func (uc *UserUseCase) GetUserByID(ctx context.Context, id string) (*dto.UserRes
 func (uc *UserUseCase) GetUserByChannel(ctx context.Context, channel, channelID string) (*dto.UserResponse, error) {
 	user, err := uc.userRepo.FindByChannel(ctx, channel, channelID)
 	if err != nil {
-		return dto.ErrorUserResponse(fmt.Errorf("failed to find user by channel: %w", err)), fmt.Errorf("failed to find user by channel: %w", err)
+		return handleUserError(err, "failed to find user by channel")
 	}
 
 	return dto.SuccessUserResponse(dto.UserDTOFromEntity(user)), nil
@@ -31,7 +30,7 @@ func (uc *UserUseCase) GetUserByChannel(ctx context.Context, channel, channelID 
 func (uc *UserUseCase) ListUsers(ctx context.Context) (*dto.UsersResponse, error) {
 	users, err := uc.userRepo.List(ctx)
 	if err != nil {
-		return dto.ErrorUsersResponse(fmt.Errorf("failed to list users: %w", err)), fmt.Errorf("failed to list users: %w", err)
+		return dto.ErrorUsersResponse(err), err
 	}
 
 	userDTOs := make([]*dto.UserDTO, 0, len(users))

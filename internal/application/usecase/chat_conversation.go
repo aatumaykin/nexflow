@@ -2,7 +2,6 @@ package usecase
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/atumaikin/nexflow/internal/application/dto"
 )
@@ -11,7 +10,7 @@ import (
 func (uc *ChatUseCase) GetConversation(ctx context.Context, sessionID string) (*dto.MessagesResponse, error) {
 	messages, err := uc.messageRepo.FindBySessionID(ctx, sessionID)
 	if err != nil {
-		return dto.ErrorMessageResponse(fmt.Errorf("failed to get conversation: %w", err)), fmt.Errorf("failed to get conversation: %w", err)
+		return handleMessagesError(err, "failed to get conversation")
 	}
 
 	messageDTOs := make([]*dto.MessageDTO, 0, len(messages))
