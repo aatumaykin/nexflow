@@ -13,6 +13,7 @@ type Config struct {
 	Skills   SkillsConfig   `yaml:"skills"`
 	Logging  LoggingConfig  `yaml:"logging"`
 	EventBus EventBusConfig `yaml:"eventbus"`
+	Router   RouterConfig   `yaml:"router"`
 }
 
 // Load loads configuration from a YAML file.
@@ -36,6 +37,13 @@ func Load(path string) (*Config, error) {
 		return nil, err
 	}
 
+	// Apply default values for router config if not set
+	if config.Router.MaxMessageLength == 0 {
+		defaultRouter := DefaultRouterConfig()
+		config.Router = defaultRouter
+	}
+
+
 	// Validate configuration
 	if err := config.Validate(); err != nil {
 		return nil, err
@@ -56,6 +64,9 @@ func (c *Config) Validate() error {
 		return err
 	}
 	if err := c.Skills.Validate(); err != nil {
+		return err
+	}
+	if err := c.Router.Validate(); err != nil {
 		return err
 	}
 	if err := c.Logging.Validate(); err != nil {

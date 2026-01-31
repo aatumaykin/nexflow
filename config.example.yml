@@ -1,87 +1,46 @@
-# Nexflow Configuration
+# Nexflow Configuration Example
+# Copy this file to config.yml and update with your credentials
 
 server:
-  host: "0.0.0.0"
+  host: "127.0.0.1"
   port: 8080
+
+database:
+  type: "sqlite"
+  path: "./data/nexflow.db"
+  migrations_path: "./migrations/sqlite"
+  max_open_conns: 25
+  max_idle_conns: 25
+  conn_max_lifetime: "5m"
+
+llm:
+  default_provider: "anthropic"
+  providers:
+    anthropic:
+      api_key: "${ANTHROPIC_API_KEY}"
+      model: "claude-opus-4"
+      temperature: 0.7
+      max_tokens: 1000
+
+channels:
+  telegram:
+    enabled: true
+    bot_token: "${TELEGRAM_BOT_TOKEN}"
+    allowed_users: []
+    allowed_chats: []
+
+skills:
+  directory: "./skills"
+  timeout_sec: 30
+  sandbox_enabled: true
+
+eventbus:
+  enabled: true
+  batch_size: 100
+  flush_interval_ms: 100
+  enable_logging: true
+  buffer_size: 1000
 
 logging:
   level: "info"
   format: "json"
-
-database:
-  type: "sqlite"
-  path: "data/nexflow.db"
-  migrations_path: "./migrations"
-
-# LLM Providers Configuration
-llm:
-  # Default provider to use: openai, anthropic, ollama, or zai
-  default_provider: "openai"
-
-  # Provider-specific configurations
-  providers:
-    # OpenAI Configuration
-    openai:
-      # API Key (use environment variable for security)
-      api_key: "${OPENAI_API_KEY}"
-      # Base URL (optional, defaults to https://api.openai.com/v1)
-      base_url: "https://api.openai.com/v1"
-      # Model to use
-      model: "gpt-4"
-
-    # Anthropic Configuration
-    anthropic:
-      # API Key (use environment variable for security)
-      api_key: "${ANTHROPIC_API_KEY}"
-      # Base URL (optional, defaults to https://api.anthropic.com/v1)
-      base_url: "https://api.anthropic.com/v1"
-      # Model to use
-      model: "claude-3-sonnet-20240229"
-
-    # Ollama Configuration (local LLM)
-    ollama:
-      # Base URL (optional, defaults to http://localhost:11434)
-      base_url: "http://localhost:11434"
-      # Model to use
-      model: "llama2"
-
-    # z.ai Configuration
-    zai:
-      # API Key (use environment variable for security)
-      api_key: "${ZAI_API_KEY}"
-      # Base URL (optional, defaults to https://api.z.ai/api/paas/v4)
-      base_url: "https://api.z.ai/api/paas/v4"
-      # Model to use (e.g., glm-4, glm-4.7)
-      model: "glm-4"
-      # Temperature for generation (0.0 - 2.0, optional)
-      temperature: 0.7
-      # Maximum tokens to generate (optional)
-      max_tokens: 2000
-
-# Skills Runtime Configuration
-skills:
-  # Directory containing skill executables
-  directory: "./skills"
-  # Execution timeout in seconds
-  timeout_sec: 60
-  # Enable sandbox mode (restricts skill execution)
-  sandbox_enabled: false
-
-# Channels Configuration
-channels:
-  # Telegram Bot Configuration
-  telegram:
-    enabled: false
-    bot_token: "${TELEGRAM_BOT_TOKEN}"
-    allowed_users: []      # List of allowed Telegram user IDs (for security)
-    allowed_chats: []      # List of allowed Telegram chat IDs (for security)
-    webhook_url: ""        # Optional: use webhook instead of long polling
-
-  # Discord Bot Configuration
-  discord:
-    enabled: false
-    bot_token: "${DISCORD_BOT_TOKEN}"
-
-  # Web Interface Configuration
-  web:
-    enabled: true

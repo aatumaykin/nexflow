@@ -30,6 +30,24 @@ import (
 )
 
 // DIContainer holds all application dependencies
+
+// routerConfigFromYAML creates router.Config from shared config.RouterConfig
+func routerConfigFromYAML(cfg config.RouterConfig) *router.Config {
+	retryCfg := router.RetryConfig{
+		MaxAttempts:       cfg.RetryMaxAttempts,
+		InitialDelay:     time.Duration(cfg.RetryInitialDelayMs) * time.Millisecond,
+		MaxDelay:         time.Duration(cfg.RetryMaxDelayMs) * time.Millisecond,
+		BackoffMultiplier: cfg.RetryBackoffMultiplier,
+	}
+
+	return &router.Config{
+		MaxMessageLength: cfg.MaxMessageLength,
+		ValidationEnabled: cfg.ValidationEnabled,
+		RetryConfig:     retryCfg,
+	}
+}
+
+
 type DIContainer struct {
 	config  *config.Config
 	logger  logging.Logger
@@ -246,7 +264,7 @@ func (c *DIContainer) initConnectors() error {
 // initMessageRouter initializes the message router and registers all connectors
 func (c *DIContainer) initMessageRouter() error {
 	// Create message router (chatUseCase will be set in initUseCases)
-	c.messageRouter = router.NewMessageRouter(c.sessionRepo, nil, c.eventBus, c.logger, router.DefaultConfig())
+	c.messageRouter = router.NewMessageRouter(c.sessionRepo, nil, c.eventBus, c.logger, routerConfigFromYAML(c.config.Router))
 
 	// Register all enabled connectors
 	if c.telegramConnector != nil {
@@ -391,7 +409,7 @@ func (c *DIContainer) initUseCases() error {
 
 	// Update message router with orchestrator now that it's initialized
 	// We need to recreate the message router with the orchestrator
-	c.messageRouter = router.NewMessageRouter(c.sessionRepo, c.orchestrator, c.eventBus, c.logger, router.DefaultConfig())
+	c.messageRouter = router.NewMessageRouter(c.sessionRepo, c.orchestrator, c.eventBus, c.logger, routerConfigFromYAML(c.config.Router))
 
 	// Re-register all connectors
 	if c.telegramConnector != nil {
