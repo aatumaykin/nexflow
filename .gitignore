@@ -6,7 +6,7 @@ examples/demo/data/*.db
 *.dll
 *.so
 *.dylib
-server
+/server
 
 # Test binary, built with `go test -c`
 *.test
