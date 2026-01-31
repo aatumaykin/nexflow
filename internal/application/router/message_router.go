@@ -22,6 +22,9 @@ type MessageRouter struct {
 	orchestrator ports.Orchestrator
 	eventBus     *eventbus.EventBus
 	logger       logging.Logger
+	config       *Config
+	validator    *MessageValidator
+	retryHandler *RetryHandler
 	mu           sync.RWMutex
 	ctx          context.Context
 	cancel       context.CancelFunc
@@ -35,11 +38,27 @@ type MessageRouter struct {
 //   - orchestrator: Orchestrator for processing messages
 //   - eventBus: EventBus for publishing events
 //   - logger: Structured logger for logging
+//   - config: Router configuration (uses defaults if nil)
 //
 // Returns:
 //   - *MessageRouter: Initialized message router
-func NewMessageRouter(sessionRepo repository.SessionRepository, orchestrator ports.Orchestrator, eventBus *eventbus.EventBus, logger logging.Logger) *MessageRouter {
+func NewMessageRouter(sessionRepo repository.SessionRepository, orchestrator ports.Orchestrator, eventBus *eventbus.EventBus, logger logging.Logger, config *Config) *MessageRouter {
 	ctx, cancel := context.WithCancel(context.Background())
+
+	// Use default config if not provided
+	if config == nil {
+		config = DefaultConfig()
+	}
+
+	// Validate configuration
+	if err := config.Validate(); err != nil {
+		logger.Error("invalid router configuration, using defaults", "error", err)
+		config = DefaultConfig()
+	}
+
+	// Initialize validator and retry handler
+	validator := NewMessageValidator(config, logger)
+	retryHandler := NewRetryHandler(config.RetryConfig, logger)
 
 	return &MessageRouter{
 		connectors:   make(map[string]channels.Connector),
@@ -47,6 +66,9 @@ func NewMessageRouter(sessionRepo repository.SessionRepository, orchestrator por
 		orchestrator: orchestrator,
 		eventBus:     eventBus,
 		logger:       logger,
+		config:       config,
+		validator:    validator,
+		retryHandler: retryHandler,
 		ctx:          ctx,
 		cancel:       cancel,
 	}
@@ -173,6 +195,35 @@ func (r *MessageRouter) processMessages(connectorName string, conn channels.Conn
 				return
 			}
 
+			// Validate message before processing
+			if err := r.validator.Validate(msg); err != nil {
+				r.logger.Error("message validation failed",
+					"connector", connectorName,
+					"user_id", msg.UserID,
+					"error", err,
+				)
+
+				// Publish validation error event
+				if r.eventBus != nil {
+					event := eventbus.NewRouterEvent(
+						eventbus.EventRouterError,
+						"",
+						"",
+						msg.UserID,
+						msg.Content,
+						connectorName,
+						err,
+					)
+					r.eventBus.Publish(event)
+				}
+
+				// Send error response to user
+				r.sendErrorResponse(r.ctx, conn, msg.UserID,
+					"Sorry, your message could not be processed. Please check the format and try again.")
+
+				continue
+			}
+
 			r.logger.Info("received message", "connector", connectorName, "user_id", msg.UserID)
 
 			// Publish connector message event
@@ -197,6 +248,7 @@ func (r *MessageRouter) processMessages(connectorName string, conn channels.Conn
 // handleMessage handles a single message from a connector
 func (r *MessageRouter) handleMessage(connectorName string, conn channels.Connector, msg *channels.Message) {
 	ctx := r.ctx
+	var err error
 
 	// Check if orchestrator is available (nil check for testing)
 	if r.orchestrator == nil {
@@ -204,46 +256,76 @@ func (r *MessageRouter) handleMessage(connectorName string, conn channels.Connec
 		return
 	}
 
-	// Get or create user for the channel user ID
-	user, err := conn.GetUser(ctx, msg.UserID)
-	if err != nil {
-		r.logger.Error("failed to get user, creating new user", "connector", connectorName, "user_id", msg.UserID, "error", err)
-		user, err = conn.CreateUser(ctx, msg.UserID)
+	// Get or create user with retry
+	var user *entity.User
+	err = r.retryHandler.Do(ctx, "get_or_create_user", func() error {
+		var err error
+		user, err = conn.GetUser(ctx, msg.UserID)
 		if err != nil {
-			r.logger.Error("failed to create user", "connector", connectorName, "user_id", msg.UserID, "error", err)
-			// Send error message back to user
-			r.sendErrorResponse(ctx, conn, msg.UserID, "Sorry, I encountered an error processing your request.")
-			return
+			r.logger.Info("user not found, creating new user", "connector", connectorName, "user_id", msg.UserID, "error", err)
+			user, err = conn.CreateUser(ctx, msg.UserID)
 		}
+		return err
+	})
+
+	if err != nil {
+		r.logger.Error("failed to get or create user",
+			"connector", connectorName,
+			"user_id", msg.UserID,
+			"error", err,
+		)
+		r.sendErrorResponse(ctx, conn, msg.UserID, "Sorry, I encountered an error processing your request.")
+		return
 	}
 
-	// Get or create session for the user
-	sessions, err := r.sessionRepo.FindByUserID(ctx, string(user.ID))
-	if err != nil || len(sessions) == 0 {
-		// No session exists, create a new one
-		session := entity.NewSession(string(user.ID))
-		if err := r.sessionRepo.Create(ctx, session); err != nil {
-			r.logger.Error("failed to create session", "connector", connectorName, "user_id", msg.UserID, "error", err)
-			// Send error message back to user
-			r.sendErrorResponse(ctx, conn, msg.UserID, "Sorry, I encountered an error creating a session.")
-			return
+	// Get or create session with retry
+	var session *entity.Session
+	err = r.retryHandler.Do(ctx, "get_or_create_session", func() error {
+		sessions, err := r.sessionRepo.FindByUserID(ctx, string(user.ID))
+		if err != nil || len(sessions) == 0 {
+			// No session exists, create a new one
+			newSession := entity.NewSession(string(user.ID))
+			if err := r.sessionRepo.Create(ctx, newSession); err != nil {
+				return fmt.Errorf("failed to create session: %w", err)
+			}
+			session = newSession
+			r.logger.Info("session created",
+				"connector", connectorName,
+				"session_id", session.ID,
+				"user_id", user.ID,
+			)
+			return nil
 		}
-		sessions = []*entity.Session{session}
-		r.logger.Info("session created", "session_id", session.ID, "user_id", user.ID)
-	}
 
-	// Use the most recent session (last in the list)
-	session := sessions[len(sessions)-1]
+		// Use the most recent session (last in the list)
+		session = sessions[len(sessions)-1]
+		return nil
+	})
+
+	if err != nil {
+		r.logger.Error("failed to get or create session",
+			"connector", connectorName,
+			"user_id", msg.UserID,
+			"error", err,
+		)
+		r.sendErrorResponse(ctx, conn, msg.UserID, "Sorry, I encountered an error creating a session.")
+		return
+	}
 
 	// Prepare message options with session ID
 	options := dto.MessageOptions{
 		MaxTokens: 1000,
 	}
 
-	// Process message through Orchestrator with session ID
+	// Process message through Orchestrator
 	resp, err := r.orchestrator.ProcessMessage(ctx, string(user.ID), msg.Content, options)
 	if err != nil {
-		r.logger.Error("failed to process message", "connector", connectorName, "user_id", msg.UserID, "error", err)
+		r.logger.Error("failed to process message",
+			"connector", connectorName,
+			"user_id", msg.UserID,
+			"session_id", session.ID,
+			"error", err,
+		)
 		r.sendErrorResponse(ctx, conn, msg.UserID, "Sorry, I encountered an error generating a response.")
 		return
 	}
@@ -265,7 +347,13 @@ func (r *MessageRouter) handleMessage(connectorName string, conn channels.Connec
 			}
 
 			if err := conn.SendResponse(ctx, msg.UserID, response); err != nil {
-				r.logger.Error("failed to send response", "connector", connectorName, "user_id", msg.UserID, "error", err)
+				r.logger.Error("failed to send response",
+					"connector", connectorName,
+					"user_id", msg.UserID,
+					"session_id", session.ID,
+					"message_id", resp.Message.ID,
+					"error", err,
+				)
 
 				// Publish router error event
 				if r.eventBus != nil {
@@ -281,7 +369,12 @@ func (r *MessageRouter) handleMessage(connectorName string, conn channels.Connec
 					r.eventBus.Publish(event)
 				}
 			} else {
-				r.logger.Info("response sent", "connector", connectorName, "user_id", msg.UserID, "session_id", session.ID)
+				r.logger.Info("response sent",
+					"connector", connectorName,
+					"user_id", msg.UserID,
+					"session_id", session.ID,
+					"message_id", resp.Message.ID,
+				)
 
 				// Publish router message event
 				if r.eventBus != nil {
@@ -301,7 +394,7 @@ func (r *MessageRouter) handleMessage(connectorName string, conn channels.Connec
 	}
 }
 
-// sendErrorResponse sends an error message to the user through the connector
+// sendErrorResponse sends an error message to user through connector
 func (r *MessageRouter) sendErrorResponse(ctx context.Context, conn channels.Connector, userID string, message string) {
 	response := &channels.Response{
 		Content: message,

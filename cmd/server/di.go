@@ -246,7 +246,7 @@ func (c *DIContainer) initConnectors() error {
 // initMessageRouter initializes the message router and registers all connectors
 func (c *DIContainer) initMessageRouter() error {
 	// Create message router (chatUseCase will be set in initUseCases)
-	c.messageRouter = router.NewMessageRouter(c.sessionRepo, nil, c.eventBus, c.logger)
+	c.messageRouter = router.NewMessageRouter(c.sessionRepo, nil, c.eventBus, c.logger, router.DefaultConfig())
 
 	// Register all enabled connectors
 	if c.telegramConnector != nil {
@@ -391,7 +391,7 @@ func (c *DIContainer) initUseCases() error {
 
 	// Update message router with orchestrator now that it's initialized
 	// We need to recreate the message router with the orchestrator
-	c.messageRouter = router.NewMessageRouter(c.sessionRepo, c.orchestrator, c.eventBus, c.logger)
+	c.messageRouter = router.NewMessageRouter(c.sessionRepo, c.orchestrator, c.eventBus, c.logger, router.DefaultConfig())
 
 	// Re-register all connectors
 	if c.telegramConnector != nil {

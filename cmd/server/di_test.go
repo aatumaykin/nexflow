@@ -198,7 +198,7 @@ func TestMessageRouterIntegration(t *testing.T) {
 	logger := logging.NewNoopLogger()
 	eventBus := eventbus.NewEventBus(nil)
 	sessionRepo := &mockSessionRepository{}
-	router := router.NewMessageRouter(sessionRepo, nil, eventBus, logger)
+	router := router.NewMessageRouter(sessionRepo, nil, eventBus, logger, router.DefaultConfig())
 
 	// Create mock connectors
 	telegramConn := channelmock.NewTelegramConnector()

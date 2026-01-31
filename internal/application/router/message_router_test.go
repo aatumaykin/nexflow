@@ -150,9 +150,10 @@ func TestNewMessageRouter(t *testing.T) {
 	logger := logging.NewNoopLogger()
 	eventBus := eventbus.NewEventBus(nil)
 	sessionRepo := newMockSessionRepository()
+	config := DefaultConfig()
 
 	// Use nil for now - we'll test with real dependencies later
-	router := NewMessageRouter(sessionRepo, nil, eventBus, logger)
+	router := NewMessageRouter(sessionRepo, nil, eventBus, logger, config)
 
 	if router == nil {
 		t.Fatal("Expected non-nil router")
@@ -161,13 +162,18 @@ func TestNewMessageRouter(t *testing.T) {
 	if router.connectors == nil {
 		t.Error("Expected non-nil connectors map")
 	}
+
+	if router.config == nil {
+		t.Error("Expected non-nil config")
+	}
 }
 
 func TestRegisterConnector(t *testing.T) {
 	logger := logging.NewNoopLogger()
 	eventBus := eventbus.NewEventBus(nil)
 	sessionRepo := newMockSessionRepository()
-	router := NewMessageRouter(sessionRepo, nil, eventBus, logger)
+	config := DefaultConfig()
+	router := NewMessageRouter(sessionRepo, nil, eventBus, logger, config)
 
 	conn := newMockConnector("telegram")
 	router.RegisterConnector(conn)
@@ -186,7 +192,7 @@ func TestUnregisterConnector(t *testing.T) {
 	logger := logging.NewNoopLogger()
 	eventBus := eventbus.NewEventBus(nil)
 	sessionRepo := newMockSessionRepository()
-	router := NewMessageRouter(sessionRepo, nil, eventBus, logger)
+	router := NewMessageRouter(sessionRepo, nil, eventBus, logger, DefaultConfig())
 
 	conn := newMockConnector("telegram")
 	router.RegisterConnector(conn)
@@ -202,7 +208,7 @@ func TestListConnectors(t *testing.T) {
 	logger := logging.NewNoopLogger()
 	eventBus := eventbus.NewEventBus(nil)
 	sessionRepo := newMockSessionRepository()
-	router := NewMessageRouter(sessionRepo, nil, eventBus, logger)
+	router := NewMessageRouter(sessionRepo, nil, eventBus, logger, DefaultConfig())
 
 	conn1 := newMockConnector("telegram")
 	conn2 := newMockConnector("discord")
@@ -219,7 +225,7 @@ func TestStartStop(t *testing.T) {
 	logger := logging.NewNoopLogger()
 	eventBus := eventbus.NewEventBus(nil)
 	sessionRepo := newMockSessionRepository()
-	router := NewMessageRouter(sessionRepo, nil, eventBus, logger)
+	router := NewMessageRouter(sessionRepo, nil, eventBus, logger, DefaultConfig())
 
 	conn := newMockConnector("telegram")
 	router.RegisterConnector(conn)
@@ -245,7 +251,7 @@ func TestMultipleConnectors(t *testing.T) {
 	logger := logging.NewNoopLogger()
 	eventBus := eventbus.NewEventBus(nil)
 	sessionRepo := newMockSessionRepository()
-	router := NewMessageRouter(sessionRepo, nil, eventBus, logger)
+	router := NewMessageRouter(sessionRepo, nil, eventBus, logger, DefaultConfig())
 
 	conn1 := newMockConnector("telegram")
 	conn2 := newMockConnector("discord")
@@ -276,7 +282,7 @@ func TestConnectorConcurrency(t *testing.T) {
 	logger := logging.NewNoopLogger()
 	eventBus := eventbus.NewEventBus(nil)
 	sessionRepo := newMockSessionRepository()
-	router := NewMessageRouter(sessionRepo, nil, eventBus, logger)
+	router := NewMessageRouter(sessionRepo, nil, eventBus, logger, DefaultConfig())
 
 	conn := newMockConnector("telegram")
 	router.RegisterConnector(conn)
