@@ -27,7 +27,8 @@ func TestUser_CanAccessSession(t *testing.T) {
 	// Act
 	result := user.CanAccessSession("session-1")
 
-	// Assert - Currently always returns true per implementation
+	// Assert - DEPRECATED: Returns true for backward compatibility
+	// Use service.SessionAccessService for actual access control
 	assert.True(t, result)
 }
 

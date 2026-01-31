@@ -27,11 +27,17 @@ func NewUser(channel, channelID string) *User {
 }
 
 // CanAccessSession checks if the user can access the specified session.
-// Currently, this is a placeholder that always returns true.
-// TODO: Implement access control logic based on user permissions.
-// Future feature - see issue Nexflow-a97 for implementation details.
+//
+// DEPRECATED: Use service.SessionAccessService for proper access control.
+// This method is kept for backward compatibility and will be removed in future versions.
+// SessionAccessService implements proper ownership checks against the database.
+//
+// For session access control, use:
+//
+//	service.SessionAccessService.CanAccessSession(ctx, userID, sessionID)
 func (u *User) CanAccessSession(sessionID valueobject.SessionID) bool {
-	// For now, users can access their own sessions
+	// DEPRECATED: Always returns true for backward compatibility.
+	// Use service.SessionAccessService for actual access control.
 	return true
 }
 
