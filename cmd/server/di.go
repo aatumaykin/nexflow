@@ -5,10 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/atumaikin/nexflow/internal/application/orchestrator
+	"github.com/atumaikin/nexflow/internal/application/orchestrator"
 	"github.com/atumaikin/nexflow/internal/application/ports"
 	"github.com/atumaikin/nexflow/internal/application/router"
-	orchestrator ports.Orchestrator
 	"github.com/atumaikin/nexflow/internal/application/usecase"
 	"github.com/atumaikin/nexflow/internal/domain/repository"
 	"github.com/atumaikin/nexflow/internal/infrastructure/channels"
@@ -52,6 +51,9 @@ type DIContainer struct {
 	// Ports
 	llmProvider  ports.LLMProvider
 	skillRuntime ports.SkillRuntime
+
+	// Orchestrator
+	orchestrator ports.Orchestrator
 
 	// Connectors
 	telegramConnector channels.Connector
@@ -215,6 +217,7 @@ func (c *DIContainer) initConnectors() error {
 			c.telegramConnector = telegramconn.NewConnector(
 				c.config.Channels.Telegram,
 				c.userRepo,
+				c.sessionRepo,
 				slogLogger.GetSlogLogger(),
 			)
 			c.logger.Info("telegram connector initialized (real)")
@@ -243,7 +246,7 @@ func (c *DIContainer) initConnectors() error {
 // initMessageRouter initializes the message router and registers all connectors
 func (c *DIContainer) initMessageRouter() error {
 	// Create message router (chatUseCase will be set in initUseCases)
-	c.messageRouter = router.NewMessageRouter(nil, c.eventBus, c.logger)
+	c.messageRouter = router.NewMessageRouter(c.sessionRepo, nil, c.eventBus, c.logger)
 
 	// Register all enabled connectors
 	if c.telegramConnector != nil {
@@ -383,25 +386,22 @@ func (c *DIContainer) initUseCases() error {
 		c.logger,
 	)
 
-	// Update message router with chat use case now that it's initialized
-	if c.messageRouter != nil {
-		// Access the private field via reflection or create a setter
-		// For now, we'll create a new router with the use case
-		routerWithUseCase := c.orchestrator = orchestrator.NewOrchestrator(c.chatUseCase, c.logger)
-		routerWithOrchestrator := router.NewMessageRouter(c.orchestrator, c.eventBus, c.logger)
+	// Initialize orchestrator with chat use case
+	c.orchestrator = orchestrator.NewOrchestrator(c.chatUseCase, c.logger)
 
-		// Re-register all connectors
-		if c.telegramConnector != nil {
-			routerWithOrchestrator.RegisterConnector(c.telegramConnector)
-		}
-		if c.discordConnector != nil {
-			routerWithOrchestrator.RegisterConnector(c.discordConnector)
-		}
-		if c.webConnector != nil {
-			routerWithOrchestrator.RegisterConnector(c.webConnector)
-		}
+	// Update message router with orchestrator now that it's initialized
+	// We need to recreate the message router with the orchestrator
+	c.messageRouter = router.NewMessageRouter(c.sessionRepo, c.orchestrator, c.eventBus, c.logger)
 
-		c.messageRouter = routerWithUseCase
+	// Re-register all connectors
+	if c.telegramConnector != nil {
+		c.messageRouter.RegisterConnector(c.telegramConnector)
+	}
+	if c.discordConnector != nil {
+		c.messageRouter.RegisterConnector(c.discordConnector)
+	}
+	if c.webConnector != nil {
+		c.messageRouter.RegisterConnector(c.webConnector)
 	}
 
 	// User use case

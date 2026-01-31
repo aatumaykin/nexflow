@@ -23,6 +23,7 @@ type Connector struct {
 	config      config.TelegramConfig
 	bot         *tgbotapi.BotAPI
 	userRepo    repository.UserRepository
+	sessionRepo repository.SessionRepository
 	logger      *slog.Logger
 	running     bool
 	incoming    chan *channels.Message
@@ -90,11 +91,13 @@ func (rl *rateLimiter) acquireToken() {
 func NewConnector(
 	cfg config.TelegramConfig,
 	userRepo repository.UserRepository,
+	sessionRepo repository.SessionRepository,
 	logger *slog.Logger,
 ) *Connector {
 	return &Connector{
 		config:      cfg,
 		userRepo:    userRepo,
+		sessionRepo: sessionRepo,
 		logger:      logger,
 		incoming:    make(chan *channels.Message, 100),
 		rateLimiter: newRateLimiter(),
@@ -328,23 +331,6 @@ func (c *Connector) processUpdates(ctx context.Context) {
 
 // handleMessage processes an incoming message from Telegram
 func (c *Connector) handleMessage(ctx context.Context, message *tgbotapi.Message) {
-	// Ensure user exists in the system
-	channelUserID := fmt.Sprintf("%d", message.From.ID)
-	user, err := c.GetUser(ctx, channelUserID)
-	if err != nil {
-		// User doesn't exist, create it
-		if c.logger != nil {
-			c.logger.Debug("User not found, creating new user", "channel_user_id", channelUserID)
-		}
-		user, err = c.CreateUser(ctx, channelUserID)
-		if err != nil {
-			if c.logger != nil {
-				c.logger.Error("Failed to create user", "error", err)
-			}
-			return
-		}
-	}
-
 	// Extract message content and metadata
 	content, metadata := c.extractMessageContent(message)
 
@@ -354,11 +340,6 @@ func (c *Connector) handleMessage(ctx context.Context, message *tgbotapi.Message
 		ChannelID: formatChatID(message.Chat.ID),
 		Content:   content,
 		Metadata:  metadata,
-	}
-
-	// Add user ID to metadata
-	if user != nil {
-		msg.Metadata["user_internal_id"] = user.ID.String()
 	}
 
 	// Send message to incoming channel

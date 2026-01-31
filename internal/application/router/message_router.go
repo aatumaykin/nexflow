@@ -7,6 +7,8 @@ import (
 
 	"github.com/atumaikin/nexflow/internal/application/dto"
 	"github.com/atumaikin/nexflow/internal/application/ports"
+	"github.com/atumaikin/nexflow/internal/domain/entity"
+	"github.com/atumaikin/nexflow/internal/domain/repository"
 	"github.com/atumaikin/nexflow/internal/infrastructure/channels"
 	"github.com/atumaikin/nexflow/internal/shared/eventbus"
 	"github.com/atumaikin/nexflow/internal/shared/logging"
@@ -16,6 +18,7 @@ import (
 // and sends responses back through appropriate connector
 type MessageRouter struct {
 	connectors   map[string]channels.Connector
+	sessionRepo  repository.SessionRepository
 	orchestrator ports.Orchestrator
 	eventBus     *eventbus.EventBus
 	logger       logging.Logger
@@ -28,17 +31,19 @@ type MessageRouter struct {
 // NewMessageRouter creates a new MessageRouter instance
 //
 // Parameters:
+//   - sessionRepo: SessionRepository for managing sessions
 //   - orchestrator: Orchestrator for processing messages
 //   - eventBus: EventBus for publishing events
 //   - logger: Structured logger for logging
 //
 // Returns:
 //   - *MessageRouter: Initialized message router
-func NewMessageRouter(orchestrator ports.Orchestrator, eventBus *eventbus.EventBus, logger logging.Logger) *MessageRouter {
+func NewMessageRouter(sessionRepo repository.SessionRepository, orchestrator ports.Orchestrator, eventBus *eventbus.EventBus, logger logging.Logger) *MessageRouter {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &MessageRouter{
 		connectors:   make(map[string]channels.Connector),
+		sessionRepo:  sessionRepo,
 		orchestrator: orchestrator,
 		eventBus:     eventBus,
 		logger:       logger,
@@ -212,12 +217,30 @@ func (r *MessageRouter) handleMessage(connectorName string, conn channels.Connec
 		}
 	}
 
-	// Prepare message options
+	// Get or create session for the user
+	sessions, err := r.sessionRepo.FindByUserID(ctx, string(user.ID))
+	if err != nil || len(sessions) == 0 {
+		// No session exists, create a new one
+		session := entity.NewSession(string(user.ID))
+		if err := r.sessionRepo.Create(ctx, session); err != nil {
+			r.logger.Error("failed to create session", "connector", connectorName, "user_id", msg.UserID, "error", err)
+			// Send error message back to user
+			r.sendErrorResponse(ctx, conn, msg.UserID, "Sorry, I encountered an error creating a session.")
+			return
+		}
+		sessions = []*entity.Session{session}
+		r.logger.Info("session created", "session_id", session.ID, "user_id", user.ID)
+	}
+
+	// Use the most recent session (last in the list)
+	session := sessions[len(sessions)-1]
+
+	// Prepare message options with session ID
 	options := dto.MessageOptions{
 		MaxTokens: 1000,
 	}
 
-	// Process message through Orchestrator
+	// Process message through Orchestrator with session ID
 	resp, err := r.orchestrator.ProcessMessage(ctx, string(user.ID), msg.Content, options)
 	if err != nil {
 		r.logger.Error("failed to process message", "connector", connectorName, "user_id", msg.UserID, "error", err)
@@ -236,8 +259,9 @@ func (r *MessageRouter) handleMessage(connectorName string, conn channels.Connec
 				},
 			}
 
-			if resp.Message.SessionID != "" {
-				response.Metadata["session_id"] = resp.Message.SessionID
+			// Add session ID to response metadata
+			if session.ID != "" {
+				response.Metadata["session_id"] = session.ID.String()
 			}
 
 			if err := conn.SendResponse(ctx, msg.UserID, response); err != nil {
@@ -248,7 +272,7 @@ func (r *MessageRouter) handleMessage(connectorName string, conn channels.Connec
 					event := eventbus.NewRouterEvent(
 						eventbus.EventRouterError,
 						resp.Message.ID,
-						resp.Message.SessionID,
+						session.ID.String(),
 						msg.UserID,
 						resp.Message.Content,
 						connectorName,
@@ -257,14 +281,14 @@ func (r *MessageRouter) handleMessage(connectorName string, conn channels.Connec
 					r.eventBus.Publish(event)
 				}
 			} else {
-				r.logger.Info("response sent", "connector", connectorName, "user_id", msg.UserID)
+				r.logger.Info("response sent", "connector", connectorName, "user_id", msg.UserID, "session_id", session.ID)
 
 				// Publish router message event
 				if r.eventBus != nil {
 					event := eventbus.NewRouterEvent(
 						eventbus.EventRouterMessage,
 						resp.Message.ID,
-						resp.Message.SessionID,
+						session.ID.String(),
 						msg.UserID,
 						resp.Message.Content,
 						connectorName,

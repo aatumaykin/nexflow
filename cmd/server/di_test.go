@@ -2,16 +2,41 @@ package main
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/atumaikin/nexflow/internal/application/router"
+	"github.com/atumaikin/nexflow/internal/domain/entity"
 	channelmock "github.com/atumaikin/nexflow/internal/infrastructure/channels/mock"
 	"github.com/atumaikin/nexflow/internal/infrastructure/persistence/database"
 	"github.com/atumaikin/nexflow/internal/shared/config"
 	"github.com/atumaikin/nexflow/internal/shared/eventbus"
 	"github.com/atumaikin/nexflow/internal/shared/logging"
 )
+
+// mockSessionRepository is a mock implementation of repository.SessionRepository for testing
+type mockSessionRepository struct{}
+
+func (m *mockSessionRepository) Create(ctx context.Context, session *entity.Session) error {
+	return nil
+}
+
+func (m *mockSessionRepository) FindByID(ctx context.Context, id string) (*entity.Session, error) {
+	return nil, errors.New("not found")
+}
+
+func (m *mockSessionRepository) FindByUserID(ctx context.Context, userID string) ([]*entity.Session, error) {
+	return nil, nil
+}
+
+func (m *mockSessionRepository) Update(ctx context.Context, session *entity.Session) error {
+	return nil
+}
+
+func (m *mockSessionRepository) Delete(ctx context.Context, id string) error {
+	return nil
+}
 
 func TestDIContainerInitConnectors(t *testing.T) {
 	// Create test configuration
@@ -172,7 +197,8 @@ func TestMessageRouterIntegration(t *testing.T) {
 	// Create a message router with mock connectors
 	logger := logging.NewNoopLogger()
 	eventBus := eventbus.NewEventBus(nil)
-	router := router.NewMessageRouter(nil, eventBus, logger)
+	sessionRepo := &mockSessionRepository{}
+	router := router.NewMessageRouter(sessionRepo, nil, eventBus, logger)
 
 	// Create mock connectors
 	telegramConn := channelmock.NewTelegramConnector()

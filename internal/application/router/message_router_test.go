@@ -15,6 +15,55 @@ import (
 
 var ErrUserNotFound = errors.New("user not found")
 
+// mockSessionRepository is a mock implementation of repository.SessionRepository for testing
+type mockSessionRepository struct {
+	sessions map[string]*entity.Session
+}
+
+func newMockSessionRepository() *mockSessionRepository {
+	return &mockSessionRepository{
+		sessions: make(map[string]*entity.Session),
+	}
+}
+
+func (m *mockSessionRepository) Create(ctx context.Context, session *entity.Session) error {
+	m.sessions[session.ID.String()] = session
+	return nil
+}
+
+func (m *mockSessionRepository) FindByID(ctx context.Context, id string) (*entity.Session, error) {
+	if session, exists := m.sessions[id]; exists {
+		return session, nil
+	}
+	return nil, errors.New("session not found")
+}
+
+func (m *mockSessionRepository) FindByUserID(ctx context.Context, userID string) ([]*entity.Session, error) {
+	var sessions []*entity.Session
+	for _, session := range m.sessions {
+		if session.UserID.String() == userID {
+			sessions = append(sessions, session)
+		}
+	}
+	return sessions, nil
+}
+
+func (m *mockSessionRepository) Update(ctx context.Context, session *entity.Session) error {
+	if _, exists := m.sessions[session.ID.String()]; exists {
+		m.sessions[session.ID.String()] = session
+		return nil
+	}
+	return errors.New("session not found")
+}
+
+func (m *mockSessionRepository) Delete(ctx context.Context, id string) error {
+	if _, exists := m.sessions[id]; exists {
+		delete(m.sessions, id)
+		return nil
+	}
+	return errors.New("session not found")
+}
+
 // mockConnector is a mock implementation of channels.Connector for testing
 type mockConnector struct {
 	name      string
@@ -100,9 +149,10 @@ func (m *mockConnector) GetResponsesCount() int {
 func TestNewMessageRouter(t *testing.T) {
 	logger := logging.NewNoopLogger()
 	eventBus := eventbus.NewEventBus(nil)
+	sessionRepo := newMockSessionRepository()
 
 	// Use nil for now - we'll test with real dependencies later
-	router := NewMessageRouter(nil, eventBus, logger)
+	router := NewMessageRouter(sessionRepo, nil, eventBus, logger)
 
 	if router == nil {
 		t.Fatal("Expected non-nil router")
@@ -116,7 +166,8 @@ func TestNewMessageRouter(t *testing.T) {
 func TestRegisterConnector(t *testing.T) {
 	logger := logging.NewNoopLogger()
 	eventBus := eventbus.NewEventBus(nil)
-	router := NewMessageRouter(nil, eventBus, logger)
+	sessionRepo := newMockSessionRepository()
+	router := NewMessageRouter(sessionRepo, nil, eventBus, logger)
 
 	conn := newMockConnector("telegram")
 	router.RegisterConnector(conn)
@@ -134,7 +185,8 @@ func TestRegisterConnector(t *testing.T) {
 func TestUnregisterConnector(t *testing.T) {
 	logger := logging.NewNoopLogger()
 	eventBus := eventbus.NewEventBus(nil)
-	router := NewMessageRouter(nil, eventBus, logger)
+	sessionRepo := newMockSessionRepository()
+	router := NewMessageRouter(sessionRepo, nil, eventBus, logger)
 
 	conn := newMockConnector("telegram")
 	router.RegisterConnector(conn)
@@ -149,7 +201,8 @@ func TestUnregisterConnector(t *testing.T) {
 func TestListConnectors(t *testing.T) {
 	logger := logging.NewNoopLogger()
 	eventBus := eventbus.NewEventBus(nil)
-	router := NewMessageRouter(nil, eventBus, logger)
+	sessionRepo := newMockSessionRepository()
+	router := NewMessageRouter(sessionRepo, nil, eventBus, logger)
 
 	conn1 := newMockConnector("telegram")
 	conn2 := newMockConnector("discord")
@@ -165,7 +218,8 @@ func TestListConnectors(t *testing.T) {
 func TestStartStop(t *testing.T) {
 	logger := logging.NewNoopLogger()
 	eventBus := eventbus.NewEventBus(nil)
-	router := NewMessageRouter(nil, eventBus, logger)
+	sessionRepo := newMockSessionRepository()
+	router := NewMessageRouter(sessionRepo, nil, eventBus, logger)
 
 	conn := newMockConnector("telegram")
 	router.RegisterConnector(conn)
@@ -190,7 +244,8 @@ func TestStartStop(t *testing.T) {
 func TestMultipleConnectors(t *testing.T) {
 	logger := logging.NewNoopLogger()
 	eventBus := eventbus.NewEventBus(nil)
-	router := NewMessageRouter(nil, eventBus, logger)
+	sessionRepo := newMockSessionRepository()
+	router := NewMessageRouter(sessionRepo, nil, eventBus, logger)
 
 	conn1 := newMockConnector("telegram")
 	conn2 := newMockConnector("discord")
@@ -220,7 +275,8 @@ func TestMultipleConnectors(t *testing.T) {
 func TestConnectorConcurrency(t *testing.T) {
 	logger := logging.NewNoopLogger()
 	eventBus := eventbus.NewEventBus(nil)
-	router := NewMessageRouter(nil, eventBus, logger)
+	sessionRepo := newMockSessionRepository()
+	router := NewMessageRouter(sessionRepo, nil, eventBus, logger)
 
 	conn := newMockConnector("telegram")
 	router.RegisterConnector(conn)

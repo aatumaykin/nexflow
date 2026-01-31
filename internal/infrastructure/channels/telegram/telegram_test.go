@@ -53,6 +53,42 @@ func (m *MockUserRepository) Delete(ctx context.Context, id string) error {
 	return args.Error(0)
 }
 
+// MockSessionRepository is a mock implementation of repository.SessionRepository
+type MockSessionRepository struct {
+	mock.Mock
+}
+
+func (m *MockSessionRepository) Create(ctx context.Context, session *entity.Session) error {
+	args := m.Called(ctx, session)
+	return args.Error(0)
+}
+
+func (m *MockSessionRepository) FindByID(ctx context.Context, id string) (*entity.Session, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*entity.Session), args.Error(1)
+}
+
+func (m *MockSessionRepository) FindByUserID(ctx context.Context, userID string) ([]*entity.Session, error) {
+	args := m.Called(ctx, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*entity.Session), args.Error(1)
+}
+
+func (m *MockSessionRepository) Update(ctx context.Context, session *entity.Session) error {
+	args := m.Called(ctx, session)
+	return args.Error(0)
+}
+
+func (m *MockSessionRepository) Delete(ctx context.Context, id string) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
 func TestNewConnector(t *testing.T) {
 	cfg := config.TelegramConfig{
 		Enabled:      true,
@@ -61,7 +97,7 @@ func TestNewConnector(t *testing.T) {
 	}
 
 	mockRepo := new(MockUserRepository)
-	connector := NewConnector(cfg, mockRepo, nil)
+	connector := NewConnector(cfg, mockRepo, nil, nil)
 
 	assert.NotNil(t, connector)
 	assert.Equal(t, "telegram", connector.Name())
@@ -76,7 +112,7 @@ func TestConnector_Start_InvalidToken(t *testing.T) {
 	}
 
 	mockRepo := new(MockUserRepository)
-	connector := NewConnector(cfg, mockRepo, nil)
+	connector := NewConnector(cfg, mockRepo, nil, nil)
 
 	ctx := context.Background()
 	err := connector.Start(ctx)
@@ -94,7 +130,7 @@ func TestConnector_Start_AlreadyRunning(t *testing.T) {
 	}
 
 	mockRepo := new(MockUserRepository)
-	connector := NewConnector(cfg, mockRepo, nil)
+	connector := NewConnector(cfg, mockRepo, nil, nil)
 
 	// First start will fail due to invalid token, but we'll set running to true
 	connector.mu.Lock()
@@ -116,7 +152,7 @@ func TestConnector_Stop_NotRunning(t *testing.T) {
 	}
 
 	mockRepo := new(MockUserRepository)
-	connector := NewConnector(cfg, mockRepo, nil)
+	connector := NewConnector(cfg, mockRepo, nil, nil)
 
 	ctx := context.Background()
 	err := connector.Stop(ctx)
@@ -133,7 +169,7 @@ func TestConnector_SendResponse_NotRunning(t *testing.T) {
 	}
 
 	mockRepo := new(MockUserRepository)
-	connector := NewConnector(cfg, mockRepo, nil)
+	connector := NewConnector(cfg, mockRepo, nil, nil)
 
 	ctx := context.Background()
 	response := &channels.Response{Content: "test message"}
@@ -151,7 +187,7 @@ func TestConnector_SendResponse_InvalidUserID(t *testing.T) {
 	}
 
 	mockRepo := new(MockUserRepository)
-	connector := NewConnector(cfg, mockRepo, nil)
+	connector := NewConnector(cfg, mockRepo, nil, nil)
 
 	// Simulate running state
 	connector.mu.Lock()
@@ -177,7 +213,7 @@ func TestConnector_GetUser(t *testing.T) {
 	user := entity.NewUser("telegram", "123")
 	mockRepo.On("FindByChannel", mock.Anything, "telegram", "123").Return(user, nil)
 
-	connector := NewConnector(cfg, mockRepo, nil)
+	connector := NewConnector(cfg, mockRepo, nil, nil)
 
 	ctx := context.Background()
 	foundUser, err := connector.GetUser(ctx, "123")
@@ -198,7 +234,7 @@ func TestConnector_GetUser_NotFound(t *testing.T) {
 	mockRepo := new(MockUserRepository)
 	mockRepo.On("FindByChannel", mock.Anything, "telegram", "456").Return(nil, errors.New("user not found"))
 
-	connector := NewConnector(cfg, mockRepo, nil)
+	connector := NewConnector(cfg, mockRepo, nil, nil)
 
 	ctx := context.Background()
 	_, err := connector.GetUser(ctx, "456")
@@ -217,7 +253,7 @@ func TestConnector_CreateUser(t *testing.T) {
 	mockRepo := new(MockUserRepository)
 	mockRepo.On("Create", mock.Anything, mock.AnythingOfType("*entity.User")).Return(nil)
 
-	connector := NewConnector(cfg, mockRepo, nil)
+	connector := NewConnector(cfg, mockRepo, nil, nil)
 
 	ctx := context.Background()
 	user, err := connector.CreateUser(ctx, "123")
@@ -239,7 +275,7 @@ func TestConnector_CreateUser_Error(t *testing.T) {
 	mockRepo := new(MockUserRepository)
 	mockRepo.On("Create", mock.Anything, mock.AnythingOfType("*entity.User")).Return(errors.New("database error"))
 
-	connector := NewConnector(cfg, mockRepo, nil)
+	connector := NewConnector(cfg, mockRepo, nil, nil)
 
 	ctx := context.Background()
 	_, err := connector.CreateUser(ctx, "123")
@@ -323,7 +359,7 @@ func TestGetMode(t *testing.T) {
 			WebhookURL:   "https://example.com/webhook",
 		}
 
-		connector := NewConnector(cfg, nil, nil)
+		connector := NewConnector(cfg, nil, nil, nil)
 		assert.Equal(t, "webhook", connector.getMode())
 	})
 
@@ -334,7 +370,7 @@ func TestGetMode(t *testing.T) {
 			AllowedChats: []string{"123456789"},
 		}
 
-		connector := NewConnector(cfg, nil, nil)
+		connector := NewConnector(cfg, nil, nil, nil)
 		assert.Equal(t, "polling", connector.getMode())
 	})
 }
@@ -398,7 +434,7 @@ func TestIsAllowed(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			connector := NewConnector(tt.cfg, nil, nil)
+			connector := NewConnector(tt.cfg, nil, nil, nil)
 			result := connector.isAllowed(tt.chatID, tt.userID)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -413,7 +449,7 @@ func TestConnector_Incoming(t *testing.T) {
 	}
 
 	mockRepo := new(MockUserRepository)
-	connector := NewConnector(cfg, mockRepo, nil)
+	connector := NewConnector(cfg, mockRepo, nil, nil)
 
 	incoming := connector.Incoming()
 	assert.NotNil(t, incoming)
@@ -427,7 +463,7 @@ func TestConnector_Name(t *testing.T) {
 	}
 
 	mockRepo := new(MockUserRepository)
-	connector := NewConnector(cfg, mockRepo, nil)
+	connector := NewConnector(cfg, mockRepo, nil, nil)
 
 	assert.Equal(t, "telegram", connector.Name())
 }
@@ -440,7 +476,7 @@ func TestExtractMessageContent(t *testing.T) {
 		AllowedChats: []string{"123456789"},
 	}
 
-	connector := NewConnector(cfg, nil, nil)
+	connector := NewConnector(cfg, nil, nil, nil)
 
 	tests := []struct {
 		name      string
@@ -599,7 +635,7 @@ func TestExtractMessageContentWithMetadata(t *testing.T) {
 		AllowedChats: []string{"123456789"},
 	}
 
-	connector := NewConnector(cfg, nil, nil)
+	connector := NewConnector(cfg, nil, nil, nil)
 
 	t.Run("text message with all metadata", func(t *testing.T) {
 		message := &tgbotapi.Message{
@@ -667,8 +703,8 @@ func TestExtractMessageContentWithMetadata(t *testing.T) {
 	})
 }
 
-// TestHandleMessageWithUserCreation tests that users are automatically created
-func TestHandleMessageWithUserCreation(t *testing.T) {
+// TestHandleMessage tests that messages are correctly processed
+func TestHandleMessage(t *testing.T) {
 	cfg := config.TelegramConfig{
 		Enabled:      true,
 		BotToken:     "test_token",
@@ -676,9 +712,9 @@ func TestHandleMessageWithUserCreation(t *testing.T) {
 	}
 
 	mockRepo := new(MockUserRepository)
-	connector := NewConnector(cfg, mockRepo, nil)
+	connector := NewConnector(cfg, mockRepo, nil, nil)
 
-	// Start the connector to initialize the incoming channel
+	// Start connector to initialize incoming channel
 	connector.mu.Lock()
 	connector.running = true
 	connector.incoming = make(chan *channels.Message, 100)
@@ -691,10 +727,7 @@ func TestHandleMessageWithUserCreation(t *testing.T) {
 		connector.mu.Unlock()
 	}()
 
-	t.Run("user already exists", func(t *testing.T) {
-		mockUser := entity.NewUser("telegram", "456")
-		mockRepo.On("FindByChannel", mock.Anything, "telegram", "456").Return(mockUser, nil).Once()
-
+	t.Run("text message", func(t *testing.T) {
 		message := &tgbotapi.Message{
 			Chat: &tgbotapi.Chat{ID: 123, Type: "private"},
 			From: &tgbotapi.User{ID: 456, FirstName: "Test", LastName: "User"},
@@ -711,33 +744,7 @@ func TestHandleMessageWithUserCreation(t *testing.T) {
 			assert.Equal(t, "456:123", msg.UserID)
 			assert.Equal(t, "123", msg.ChannelID)
 			assert.Equal(t, "Hello", msg.Content)
-			assert.Equal(t, mockUser.ID.String(), msg.Metadata["user_internal_id"])
-			mockRepo.AssertExpectations(t)
-		}
-	})
-
-	t.Run("user does not exist - create new", func(t *testing.T) {
-		mockRepo.On("FindByChannel", mock.Anything, "telegram", "789").Return(nil, errors.New("not found")).Once()
-		mockRepo.On("Create", mock.Anything, mock.AnythingOfType("*entity.User")).Return(nil).Once()
-
-		message := &tgbotapi.Message{
-			Chat: &tgbotapi.Chat{ID: 123, Type: "private"},
-			From: &tgbotapi.User{ID: 789, FirstName: "New", LastName: "User"},
-			Text: "Hello from new user",
-		}
-
-		ctx := context.Background()
-		go connector.handleMessage(ctx, message)
-
-		// Wait for message to be processed
-		select {
-		case msg := <-connector.incoming:
-			assert.NotNil(t, msg)
-			assert.Equal(t, "789:123", msg.UserID)
-			assert.Equal(t, "123", msg.ChannelID)
-			assert.Equal(t, "Hello from new user", msg.Content)
-			assert.NotEmpty(t, msg.Metadata["user_internal_id"])
-			mockRepo.AssertExpectations(t)
+			assert.Equal(t, "text", msg.Metadata["message_type"])
 		}
 	})
 }
@@ -751,7 +758,7 @@ func TestHandleCallbackQuery(t *testing.T) {
 	}
 
 	mockRepo := new(MockUserRepository)
-	connector := NewConnector(cfg, mockRepo, nil)
+	connector := NewConnector(cfg, mockRepo, nil, nil)
 
 	// Start the connector to initialize the incoming channel
 	connector.mu.Lock()
@@ -806,11 +813,7 @@ func TestMessageTypesIntegration(t *testing.T) {
 		AllowedChats: []string{"123456789"},
 	}
 
-	mockRepo := new(MockUserRepository)
-	mockUser := entity.NewUser("telegram", "456")
-	mockRepo.On("FindByChannel", mock.Anything, "telegram", "456").Return(mockUser, nil).Maybe()
-
-	connector := NewConnector(cfg, mockRepo, nil)
+	connector := NewConnector(cfg, nil, nil, nil)
 
 	connector.mu.Lock()
 	connector.running = true
@@ -906,7 +909,7 @@ func TestSendResponse_TextMessage(t *testing.T) {
 	}
 
 	mockRepo := new(MockUserRepository)
-	connector := NewConnector(cfg, mockRepo, nil)
+	connector := NewConnector(cfg, mockRepo, nil, nil)
 
 	// Simulate running state
 	connector.mu.Lock()
@@ -1135,7 +1138,7 @@ func TestBuildInlineMarkup(t *testing.T) {
 	}
 
 	mockRepo := new(MockUserRepository)
-	connector := NewConnector(cfg, mockRepo, nil)
+	connector := NewConnector(cfg, mockRepo, nil, nil)
 
 	t.Run("single button", func(t *testing.T) {
 		response := &channels.Response{
@@ -1205,7 +1208,7 @@ func TestSplitLongText(t *testing.T) {
 	}
 
 	mockRepo := new(MockUserRepository)
-	connector := NewConnector(cfg, mockRepo, nil)
+	connector := NewConnector(cfg, mockRepo, nil, nil)
 
 	t.Run("short text", func(t *testing.T) {
 		text := "Short message"
@@ -1255,7 +1258,7 @@ func TestHandleSendError(t *testing.T) {
 	}
 
 	mockRepo := new(MockUserRepository)
-	connector := NewConnector(cfg, mockRepo, nil)
+	connector := NewConnector(cfg, mockRepo, nil, nil)
 
 	t.Run("bot blocked by user", func(t *testing.T) {
 		err := connector.handleSendError(
@@ -1333,7 +1336,7 @@ func TestNewConnector_WithRateLimiter(t *testing.T) {
 	}
 
 	mockRepo := new(MockUserRepository)
-	connector := NewConnector(cfg, mockRepo, nil)
+	connector := NewConnector(cfg, mockRepo, nil, nil)
 
 	assert.NotNil(t, connector.rateLimiter)
 }
