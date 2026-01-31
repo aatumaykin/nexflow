@@ -30,13 +30,58 @@ jobs:
       - name: Run go vet
         run: go vet ./...
 
-      - name: Run tests
+      - name: Run tests with coverage
         run: go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: Generate coverage report
+        run: |
+          go tool cover -html=coverage.out -o coverage.html
+          go tool cover -func=coverage.out > coverage-func.txt
+          echo "Coverage summary:"
+          tail -1 coverage-func.txt
+
+      - name: Check coverage threshold (60%)
+        run: |
+          TOTAL=$(tail -1 coverage-func.txt | awk '{print $3}' | sed 's/%//')
+          echo "Total coverage: $TOTAL%"
+          MIN_COVERAGE=60
+          if (( $(echo "$TOTAL < $MIN_COVERAGE" | bc -l) )); then
+            echo "❌ Coverage ($TOTAL%) is below threshold ($MIN_COVERAGE%)"
+            exit 1
+          else
+            echo "✅ Coverage ($TOTAL%) meets threshold ($MIN_COVERAGE%)"
+          fi
+
+      - name: Generate per-package coverage
+        run: |
+          echo "=== Per-package coverage ===" > coverage-packages.txt
+          go tool cover -func=coverage.out | grep "^github.com" | awk '{
+            package = $1
+            gsub(/\/github.com\/atumaikin\/nexflow\//, "", package)
+            coverage = $3
+            print package ": " coverage
+          }' | sort >> coverage-packages.txt
+          cat coverage-packages.txt
+
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports
+          path: |
+            coverage.out
+            coverage.html
+            coverage-func.txt
+            coverage-packages.txt
+          retention-days: 30
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
           file: ./coverage.out
+          fail_ci_if_error: true
+          flags: unittests
+          name: codecov-umbrella
+          verbose: true
 
   lint:
     name: Lint

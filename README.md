@@ -1,5 +1,8 @@
 # Nexflow
 
+![codecov](https://codecov.io/gh/aatumaykin/nexflow/branch/main/graph/badge.svg)
+[![Go Report Card](https://goreportcard.com/badge/github.com/aatumaykin/nexflow)](https://goreportcard.com/report/github.com/aatumaykin/nexflow)
+
 Self-hosted ИИ-агент на Go, управляющий цифровыми потоками задач через multiple channels (Telegram, Discord, Web UI) с LLM-провайдерами (Anthropic, OpenAI, Ollama и др.) и навыками (skills).
 
 ## 🚀 Быстрый старт
@@ -94,7 +97,25 @@ go test ./internal/domain/... ./internal/application/...
 
 # Запустить только integration тесты
 go test ./internal/infrastructure/...
+
+# Сгенерировать HTML отчет покрытия
+go test -coverprofile=coverage.out -covermode=atomic ./...
+go tool cover -html=coverage.out -o coverage.html
+
+# Проверить покрытие по функциям
+go tool cover -func=coverage.out
+
+# Показать общее покрытие
+go tool cover -func=coverage.out | tail -1
 ```
+
+### 📊 Покрытие кода
+
+- **Целевое покрытие:** 60%
+- **Текущее покрытие:** обновляется на каждом PR
+- **Тренд:** отслеживается через [Codecov](https://codecov.io/gh/aatumaykin/nexflow)
+
+Детальные отчеты доступны в CI/CD artifacts и на странице [Codecov](https://codecov.io/gh/aatumaykin/nexflow).
 
 ## 🔧 Конфигурация
 

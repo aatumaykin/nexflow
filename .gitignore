@@ -14,6 +14,10 @@ examples/demo/data/*.db
 # Output of the go coverage tool
 *.out
 coverage.out
+coverage.html
+coverage-func.txt
+coverage-packages.txt
+coverage-*.txt
 
 # Dependency directories
 vendor/
@@ -69,3 +73,7 @@ Thumbs.db
 .beads/daemon.lock
 .beads/daemon.pid
 .beads/.local_version
+
+/data
+/config.yaml
+/config.yml
