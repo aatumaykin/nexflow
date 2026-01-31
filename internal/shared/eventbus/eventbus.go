@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/atumaikin/nexflow/internal/shared/logging"
+	"github.com/atumaikin/nexflow/internal/shared/metrics"
 )
 
 // Event represents a generic event that can be published through the event bus
@@ -27,6 +28,31 @@ type EventSubscription struct {
 	cancel  context.CancelFunc
 }
 
+// EventBusMetrics holds all metrics for EventBus
+type EventBusMetrics struct {
+	EventsPublished     *metrics.Counter
+	EventsProcessed     *metrics.Counter
+	EventsDropped       *metrics.Counter
+	EventsFailed        *metrics.Counter
+	SubscriptionsActive *metrics.Counter
+	ProcessingDuration  *metrics.Histogram
+}
+
+// NewEventBusMetrics creates a new EventBusMetrics instance
+func NewEventBusMetrics() *EventBusMetrics {
+	registry := metrics.NewMetricsRegistry()
+	buckets := metrics.DefaultBuckets()
+
+	return &EventBusMetrics{
+		EventsPublished:     registry.GetCounter("eventbus_events_published_total"),
+		EventsProcessed:     registry.GetCounter("eventbus_events_processed_total"),
+		EventsDropped:       registry.GetCounter("eventbus_events_dropped_total"),
+		EventsFailed:        registry.GetCounter("eventbus_events_failed_total"),
+		SubscriptionsActive: registry.GetCounter("eventbus_subscriptions_active"),
+		ProcessingDuration:  registry.GetHistogram("eventbus_processing_duration_seconds", buckets),
+	}
+}
+
 // EventBus implements a publish-subscribe pattern for internal events
 type EventBus struct {
 	mu            sync.RWMutex
@@ -43,6 +69,7 @@ type EventBus struct {
 	eventBuffer   []Event
 	bufferMu      sync.Mutex
 	started       bool
+	metrics       *EventBusMetrics
 }
 
 // EventBusConfig contains configuration options for the EventBus
@@ -53,6 +80,8 @@ type EventBusConfig struct {
 	FlushInterval time.Duration
 	// Logger is the logger to use
 	Logger logging.Logger
+	// Metrics is the metrics to use (optional)
+	Metrics *EventBusMetrics
 }
 
 // DefaultConfig returns the default configuration for EventBus
@@ -78,6 +107,12 @@ func NewEventBus(config *EventBusConfig) *EventBus {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
+	// Create default metrics if not provided
+	metrics := config.Metrics
+	if metrics == nil {
+		metrics = NewEventBusMetrics()
+	}
+
 	return &EventBus{
 		subscriptions: make(map[string][]*EventSubscription),
 		handlers:      make(map[string][]EventHandler),
@@ -88,6 +123,7 @@ func NewEventBus(config *EventBusConfig) *EventBus {
 		batchSize:     config.BatchSize,
 		flushInterval: config.FlushInterval,
 		eventBuffer:   make([]Event, 0, config.BatchSize),
+		metrics:       metrics,
 	}
 }
 
@@ -166,8 +202,22 @@ func (eb *EventBus) Subscribe(eventTypes []string, handler EventHandler) *EventS
 		eb.subscriptions[eventType] = append(eb.subscriptions[eventType], sub)
 	}
 
-	eb.logger.Info("subscription created", "id", subID, "types", eventTypes)
+	eb.metrics.SubscriptionsActive.Inc()
+	eb.logger.Info("subscription created",
+		"id", subID,
+		"types", eventTypes,
+		"total_subscriptions", eb.countTotalSubscriptions(),
+	)
 	return sub
+}
+
+// countTotalSubscriptions returns the total number of active subscriptions
+func (eb *EventBus) countTotalSubscriptions() int {
+	total := 0
+	for _, subs := range eb.subscriptions {
+		total += len(subs)
+	}
+	return total
 }
 
 // Unsubscribe removes a subscription from the event bus
@@ -193,7 +243,11 @@ func (eb *EventBus) Unsubscribe(sub *EventSubscription) {
 		}
 	}
 
-	eb.logger.Info("subscription removed", "id", sub.ID)
+	eb.metrics.SubscriptionsActive.Add(-1) // Decrement counter
+	eb.logger.Info("subscription removed",
+		"id", sub.ID,
+		"total_subscriptions", eb.countTotalSubscriptions(),
+	)
 }
 
 // Publish publishes an event to the event bus
@@ -207,12 +261,14 @@ func (eb *EventBus) Publish(event Event) {
 	}
 
 	eb.logger.Debug("event published", "type", event.Type())
+	eb.metrics.EventsPublished.Inc()
 
 	// Send event to channel for processing
 	select {
 	case eb.eventChannel <- event:
 		// Event queued successfully
 	default:
+		eb.metrics.EventsDropped.Inc()
 		eb.logger.Warn("event channel full, dropping event", "type", event.Type())
 	}
 }
@@ -295,9 +351,10 @@ func (eb *EventBus) flushBuffer() {
 
 	eb.logger.Debug("flushing events", "count", len(events))
 
-	// Process each event
+	// Process each event with metrics
 	for _, event := range events {
 		eb.dispatch(event)
+		eb.metrics.EventsProcessed.Inc()
 	}
 }
 
@@ -315,14 +372,27 @@ func (eb *EventBus) dispatch(event Event) {
 		handlers[i] = sub.Handler
 	}
 
-	// Execute each handler
+	eb.logger.Debug("dispatching event",
+		"type", event.Type(),
+		"handlers_count", len(handlers),
+	)
+
+	// Execute each handler with metrics
 	for _, handler := range handlers {
 		go func(h EventHandler) {
 			ctx, cancel := context.WithTimeout(eb.ctx, 30*time.Second)
 			defer cancel()
 
-			if err := h(ctx, event); err != nil {
-				eb.logger.Error("event handler failed", "type", event.Type(), "error", err)
+			err := metrics.RecordDurationWithError(eb.metrics.ProcessingDuration, func() error {
+				return h(ctx, event)
+			})
+
+			if err != nil {
+				eb.metrics.EventsFailed.Inc()
+				eb.logger.Error("event handler failed",
+					"type", event.Type(),
+					"error", err,
+				)
 			}
 		}(handler)
 	}

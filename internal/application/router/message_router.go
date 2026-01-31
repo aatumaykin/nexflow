@@ -12,23 +12,54 @@ import (
 	"github.com/atumaikin/nexflow/internal/infrastructure/channels"
 	"github.com/atumaikin/nexflow/internal/shared/eventbus"
 	"github.com/atumaikin/nexflow/internal/shared/logging"
+	"github.com/atumaikin/nexflow/internal/shared/metrics"
 )
+
+// RouterMetrics holds all metrics for the MessageRouter
+type RouterMetrics struct {
+	MessagesReceived          *metrics.Counter
+	MessagesProcessed         *metrics.Counter
+	MessagesFailed            *metrics.Counter
+	MessagesValidated         *metrics.Counter
+	MessageValidationFailed   *metrics.Counter
+	MessageProcessingDuration *metrics.Histogram
+	ResponseSentDuration      *metrics.Histogram
+	ConnectorsActive          *metrics.Counter
+}
+
+// NewRouterMetrics creates a new RouterMetrics instance
+func NewRouterMetrics() *RouterMetrics {
+	registry := metrics.NewMetricsRegistry()
+	buckets := metrics.DefaultBuckets()
+
+	return &RouterMetrics{
+		MessagesReceived:          registry.GetCounter("router_messages_received_total"),
+		MessagesProcessed:         registry.GetCounter("router_messages_processed_total"),
+		MessagesFailed:            registry.GetCounter("router_messages_failed_total"),
+		MessagesValidated:         registry.GetCounter("router_messages_validated_total"),
+		MessageValidationFailed:   registry.GetCounter("router_message_validation_failed_total"),
+		MessageProcessingDuration: registry.GetHistogram("router_message_processing_duration_seconds", buckets),
+		ResponseSentDuration:      registry.GetHistogram("router_response_sent_duration_seconds", buckets),
+		ConnectorsActive:          registry.GetCounter("router_connectors_active"),
+	}
+}
 
 // MessageRouter routes incoming messages from connectors to Orchestrator
 // and sends responses back through appropriate connector
 type MessageRouter struct {
-	connectors   map[string]channels.Connector
-	sessionRepo  repository.SessionRepository
-	orchestrator ports.Orchestrator
-	eventBus     *eventbus.EventBus
-	logger       logging.Logger
-	config       *Config
-	validator    *MessageValidator
-	retryHandler *RetryHandler
-	mu           sync.RWMutex
-	ctx          context.Context
-	cancel       context.CancelFunc
-	wg           sync.WaitGroup
+	connectors    map[string]channels.Connector
+	sessionRepo   repository.SessionRepository
+	orchestrator  ports.Orchestrator
+	eventBus      *eventbus.EventBus
+	logger        logging.Logger
+	config        *Config
+	validator     *MessageValidator
+	retryHandler  *RetryHandler
+	routerMetrics *RouterMetrics
+	mu            sync.RWMutex
+	ctx           context.Context
+	cancel        context.CancelFunc
+	wg            sync.WaitGroup
 }
 
 // NewMessageRouter creates a new MessageRouter instance
@@ -43,6 +74,11 @@ type MessageRouter struct {
 // Returns:
 //   - *MessageRouter: Initialized message router
 func NewMessageRouter(sessionRepo repository.SessionRepository, orchestrator ports.Orchestrator, eventBus *eventbus.EventBus, logger logging.Logger, config *Config) *MessageRouter {
+	return NewMessageRouterWithMetrics(sessionRepo, orchestrator, eventBus, logger, config, nil)
+}
+
+// NewMessageRouterWithMetrics creates a new MessageRouter with custom metrics
+func NewMessageRouterWithMetrics(sessionRepo repository.SessionRepository, orchestrator ports.Orchestrator, eventBus *eventbus.EventBus, logger logging.Logger, config *Config, routerMetrics *RouterMetrics) *MessageRouter {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// Use default config if not provided
@@ -60,17 +96,23 @@ func NewMessageRouter(sessionRepo repository.SessionRepository, orchestrator por
 	validator := NewMessageValidator(config, logger)
 	retryHandler := NewRetryHandler(config.RetryConfig, logger)
 
+	// Create default metrics if not provided
+	if routerMetrics == nil {
+		routerMetrics = NewRouterMetrics()
+	}
+
 	return &MessageRouter{
-		connectors:   make(map[string]channels.Connector),
-		sessionRepo:  sessionRepo,
-		orchestrator: orchestrator,
-		eventBus:     eventBus,
-		logger:       logger,
-		config:       config,
-		validator:    validator,
-		retryHandler: retryHandler,
-		ctx:          ctx,
-		cancel:       cancel,
+		connectors:    make(map[string]channels.Connector),
+		sessionRepo:   sessionRepo,
+		orchestrator:  orchestrator,
+		eventBus:      eventBus,
+		logger:        logger,
+		config:        config,
+		validator:     validator,
+		retryHandler:  retryHandler,
+		routerMetrics: routerMetrics,
+		ctx:           ctx,
+		cancel:        cancel,
 	}
 }
 
@@ -84,8 +126,9 @@ func (r *MessageRouter) RegisterConnector(connector channels.Connector) {
 
 	name := connector.Name()
 	r.connectors[name] = connector
+	r.routerMetrics.ConnectorsActive.Inc()
 
-	r.logger.Info("connector registered", "connector", name)
+	r.logger.Info("connector registered", "connector", name, "total_connectors", len(r.connectors))
 }
 
 // UnregisterConnector removes a connector from the router
@@ -101,7 +144,11 @@ func (r *MessageRouter) UnregisterConnector(name string) {
 			r.logger.Error("failed to stop connector", "connector", name, "error", err)
 		}
 		delete(r.connectors, name)
-		r.logger.Info("connector unregistered", "connector", name)
+		r.routerMetrics.ConnectorsActive.Add(-1) // Decrement counter
+		r.logger.Info("connector unregistered",
+			"connector", name,
+			"total_connectors", len(r.connectors),
+		)
 	}
 }
 
@@ -195,11 +242,17 @@ func (r *MessageRouter) processMessages(connectorName string, conn channels.Conn
 				return
 			}
 
+			// Record message received
+			r.routerMetrics.MessagesReceived.Inc()
+
 			// Validate message before processing
 			if err := r.validator.Validate(msg); err != nil {
+				r.routerMetrics.MessageValidationFailed.Inc()
+
 				r.logger.Error("message validation failed",
 					"connector", connectorName,
 					"user_id", msg.UserID,
+					"message_length", len(msg.Content),
 					"error", err,
 				)
 
@@ -224,7 +277,13 @@ func (r *MessageRouter) processMessages(connectorName string, conn channels.Conn
 				continue
 			}
 
-			r.logger.Info("received message", "connector", connectorName, "user_id", msg.UserID)
+			r.routerMetrics.MessagesValidated.Inc()
+
+			r.logger.Info("received message",
+				"connector", connectorName,
+				"user_id", msg.UserID,
+				"message_length", len(msg.Content),
+			)
 
 			// Publish connector message event
 			if r.eventBus != nil {
@@ -240,7 +299,25 @@ func (r *MessageRouter) processMessages(connectorName string, conn channels.Conn
 			}
 
 			// Process the message in a separate goroutine to avoid blocking
-			go r.handleMessage(connectorName, conn, msg)
+			go func() {
+				// Wrap handling with metrics
+				err := metrics.RecordDurationWithError(r.routerMetrics.MessageProcessingDuration, func() error {
+					r.handleMessage(connectorName, conn, msg)
+					return nil
+				})
+
+				// Record processing metrics
+				if err != nil {
+					r.routerMetrics.MessagesFailed.Inc()
+					r.logger.Error("message processing failed",
+						"connector", connectorName,
+						"user_id", msg.UserID,
+						"error", err,
+					)
+				} else {
+					r.routerMetrics.MessagesProcessed.Inc()
+				}
+			}()
 		}
 	}
 }
@@ -403,8 +480,16 @@ func (r *MessageRouter) sendErrorResponse(ctx context.Context, conn channels.Con
 		},
 	}
 
-	if err := conn.SendResponse(ctx, userID, response); err != nil {
-		r.logger.Error("failed to send error response", "user_id", userID, "error", err)
+	err := conn.SendResponse(ctx, userID, response)
+	if err != nil {
+		r.logger.Error("failed to send error response",
+			"user_id", userID,
+			"message_length", len(message),
+			"error", err,
+		)
+		r.routerMetrics.MessagesFailed.Inc()
+	} else {
+		r.routerMetrics.MessagesProcessed.Inc()
 	}
 }
 
