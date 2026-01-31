@@ -58,6 +58,13 @@ func main() {
 	}
 	logger.Info("DI container initialized successfully")
 
+	// Start message router to begin receiving messages from connectors
+	if err := diContainer.MessageRouter().Start(); err != nil {
+		logger.Error("Failed to start message router", "error", err)
+		os.Exit(1)
+	}
+	logger.Info("Message router started successfully")
+
 	// Access use cases from DI container
 	// chatUseCase := diContainer.ChatUseCase()
 	// userUseCase := diContainer.UserUseCase()
